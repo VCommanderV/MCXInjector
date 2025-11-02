@@ -28,6 +28,9 @@
     <Filter Include="Source Files\mcx\lib">
       <UniqueIdentifier>{43f4bd71-8891-4b37-af85-a039e36faf62}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\mcx\gui">
+      <UniqueIdentifier>{8e31b551-4517-485b-984f-cd8b411e4bee}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -36,11 +39,11 @@
     <ClCompile Include="mcx_injection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="mcx\aObject.cpp">
-      <Filter>Header Files\gui</Filter>
-    </ClCompile>
     <ClCompile Include="mcx\fit_ini_file.cpp">
       <Filter>Source Files\mcx\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="mcx\a_object.cpp">
+      <Filter>Source Files\mcx\gui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -49,7 +52,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="mcx\aObject.h">
+    <ClInclude Include="mcx\a_object.h">
       <Filter>Header Files\gui</Filter>
     </ClInclude>
     <ClInclude Include="mcx_inject.hpp">

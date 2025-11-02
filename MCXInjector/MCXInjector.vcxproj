@@ -142,7 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="mcx\aObject.cpp" />
+    <ClCompile Include="mcx\a_object.cpp" />
     <ClCompile Include="mcx\fit_ini_file.cpp" />
     <ClCompile Include="mcx_injection.cpp" />
     <ClCompile Include="dllmain.cpp" />
@@ -151,7 +151,7 @@
     <None Include="mcxinjector.def" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="mcx\aObject.h" />
+    <ClInclude Include="mcx\a_object.h" />
     <ClInclude Include="mcx\file.hpp" />
     <ClInclude Include="mcx\fit_ini_file.hpp" />
     <ClInclude Include="mcx_inject.hpp" />

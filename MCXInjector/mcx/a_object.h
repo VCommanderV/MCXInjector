@@ -3,14 +3,10 @@
 #include <cstddef>
 #include "mcx_inject.hpp"
 
-extern VTablePatchSet g_aObject_Patches;
-
-struct aObject_vtable;
-
 struct _window {
     uint8_t* pixels;
-    int32_t widthZeroBased;
-    int32_t heightZeroBased;
+    int32_t width_zero_based;
+    int32_t height_zero_based;
     uint8_t undefined_0xc;
     uint8_t undefined_0xd;
     uint8_t undefined_0xe;
@@ -21,32 +17,22 @@ struct _window {
     uint8_t undefined_0x13;
 };
 
-static_assert(offsetof(_window, pixels) == 0x0, "_window.pixels offset mismatch");
-static_assert(offsetof(_window, widthZeroBased) == 0x4, "_window.widthZeroBased offset mismatch");
-static_assert(offsetof(_window, heightZeroBased) == 0x8, "_window.heightZeroBased offset mismatch");
-static_assert(sizeof(_window) == 0x14, "Unspected size for _window struct.");
-
 struct _pane {
     _window* window;
     int32_t width;
     int32_t height;
 };
 
-static_assert(offsetof(_pane, window) == 0x0, "_pane.window offset mismatch");
-static_assert(offsetof(_pane, width) == 0x4, "_pane.width offset mismatch");
-static_assert(offsetof(_pane, height) == 0x8, "_pane.height offset mismatch");
-static_assert(sizeof(_pane) == 0xc, "Unspected size for _window struct.");
-
 // #pragma pack(push, 4)
 class aObject {
 # pragma region Fields
 public:
-    aObject_vtable* vtable;
+    void* vtable;
     uint8_t field1_0x4;
     uint8_t field2_0x5;
     uint8_t field3_0x6;
     uint8_t field4_0x7;
-    _pane* pPanel;
+    _pane* panel;
     uint8_t field9_0xc;
     uint8_t field10_0xd;
     uint8_t field11_0xe;
@@ -146,7 +132,7 @@ public:
     uint8_t field111_0x72;
     uint8_t field112_0x73;
     struct aObject* children[255];
-    int32_t numberOfChildren;
+    int32_t children_num;
     struct aObject* parent;
     uint8_t pBackground;
     uint8_t field117_0x479;
@@ -156,13 +142,13 @@ public:
     uint8_t field121_0x47d;
     uint8_t field122_0x47e;
     uint8_t field123_0x47f;
-    void* pAnimation;
-    int32_t dragStartX;
-    int32_t dragStartY;
-    int32_t bDragging;
-    int32_t animationPlaying;
-    int32_t backColor;
-    uint8_t pSomeAPort;
+    void* animation;
+    int32_t drag_start_x;
+    int32_t drag_start_Y;
+    int32_t dragging;
+    int32_t animation_playing;
+    int32_t back_color;
+    uint8_t some_port;
     uint8_t field149_0x499;
     uint8_t field150_0x49a;
     uint8_t field151_0x49b;
@@ -192,6 +178,17 @@ public:
 };
 // #pragma pack(pop)
 
+static_assert(offsetof(_window, pixels) == 0x0, "_window.pixels offset mismatch");
+static_assert(offsetof(_window, width_zero_based) == 0x4, "_window.width_zero_based offset mismatch");
+static_assert(offsetof(_window, height_zero_based) == 0x8, "_window.height_zero_based offset mismatch");
+static_assert(sizeof(_window) == 0x14, "Unspected size for _window struct.");
+
+static_assert(offsetof(_pane, window) == 0x0, "_pane.window offset mismatch");
+static_assert(offsetof(_pane, width) == 0x4, "_pane.width offset mismatch");
+static_assert(offsetof(_pane, height) == 0x8, "_pane.height offset mismatch");
+static_assert(sizeof(_pane) == 0xc, "Unspected size for _window struct.");
+
+
 static_assert(offsetof(aObject, vtable) == 0x0, "aObject.vtable offset mismatch");
-static_assert(offsetof(aObject, pPanel) == 0x8, "aObject.pPanel offset mismatch");
+static_assert(offsetof(aObject, panel) == 0x8, "aObject.panel offset mismatch");
 static_assert(offsetof(aObject, x) == 0x14, "aObject.x offset mismatch");

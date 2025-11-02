@@ -1,17 +1,18 @@
-#include "aObject.h"
+#include "a_object.h"
 #include "mcx_inject.hpp"
 #include <cassert>
 
+// __thiscall long x()
 static long __fastcall aObject_x(void* thisPtr, void* _) noexcept
 {
     return aObject::fromPtr(thisPtr)->x;
 }
 
+// __thiscall long y()
 static long __fastcall aObject_y(void* thisPtr, void* _) noexcept
 {
     return aObject::fromPtr(thisPtr)->y;
 }
-
 
 static AutoVTablePatchRegister reg_aObject(
     "aObject", 
@@ -93,6 +94,6 @@ static AutoVTablePatchRegister reg_aObject(
         { 73, nullptr }, // bottom
         { 74, nullptr }, // checkSmackerPalette
         { 75, nullptr }, // getDropTargetCount
-        { 76, nullptr } // getDropTarget
+        { 76, nullptr }  // getDropTarget
     }
 );
