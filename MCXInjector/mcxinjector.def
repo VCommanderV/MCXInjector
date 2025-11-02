@@ -1,0 +1,3 @@
+LIBRARY "MCXInjector"
+EXPORTS
+    DetoursInit @1
