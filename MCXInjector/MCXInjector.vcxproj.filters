@@ -36,7 +36,7 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="mcx_injection.cpp">
+    <ClCompile Include="mcx_inject.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="mcx\fit_ini_file.cpp">

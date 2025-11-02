@@ -144,7 +144,7 @@
   <ItemGroup>
     <ClCompile Include="mcx\a_object.cpp" />
     <ClCompile Include="mcx\fit_ini_file.cpp" />
-    <ClCompile Include="mcx_injection.cpp" />
+    <ClCompile Include="mcx_inject.cpp" />
     <ClCompile Include="dllmain.cpp" />
   </ItemGroup>
   <ItemGroup>
