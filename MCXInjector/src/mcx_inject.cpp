@@ -7,6 +7,7 @@
 #include <ctime>
 #include <cstdarg>
 #include <cstdio>
+#include <absl/strings/str_format.h>
 
 using namespace std::chrono;
 
@@ -165,7 +166,7 @@ VTablePatchSet::VTablePatchSet(const char* n, uintptr_t va,
 
 bool VTablePatchSet::ApplyAll() const {
     if (!vtable) {
-        LogDebug("Hook", "[%s] Invalid vtable (nullptr)", name);
+        LOG_DEBUG << name << " Invalid vtable (nullptr)";
         return false;
     }
     bool all_ok = true;
@@ -179,13 +180,11 @@ bool VTablePatchSet::ApplyAll() const {
         }
 
         if (!PatchVTableSlotInPlace(vtable, slot, fn)) {
-            LogDebug("Hook", "%s vtbl % p[% zu]: failed or already patched",
-                name, vtable, slot);
+            LOG_DEBUG << absl::StrFormat("%s vtbl % p[% zu]: failed or already patched", name, vtable, slot);
             all_ok = false;
         }
         else {
-            LogDebug("Hook", "%s vtbl %p[%zu] -> %p",
-                name, vtable, slot, fn);
+            LOG_DEBUG << absl::StrFormat("%s vtbl %p[%zu] -> %p", name, vtable, slot, fn);
         }
     }
 
@@ -198,7 +197,7 @@ void VTablePatchSet::RestoreAll() const {
     for (auto it = patches.begin(); it != patches.end(); ++it) {
         size_t slot = it->first;
         if (RestoreVTableSlotInPlace(vtable, slot)) {
-            LogDebug("Hook", "[%s] Restored %p[%zu]", name, vtable, slot);
+            LOG_DEBUG << absl::StrFormat("[%s] Restored %p[%zu]", name, vtable, slot);
         }
     }
 }
@@ -217,17 +216,17 @@ bool FuncPatchKey::operator==(const FuncPatchKey& other) const noexcept {
 bool PatchFunction(void* target, void* hook) {
     if (!target || !hook) return false;
         
-    LogDebug("Hook", "Start PatchFunc target=%p hook=%p", target, hook);
+    LOG_DEBUG << absl::StrFormat("Start PatchFunc target = % p hook = % p", target, hook);
         
     auto runtime_addr = (void*)MCX_RUNTIME_ADDR(reinterpret_cast<uintptr_t>(target));
         
     FuncPatchKey key{ target };
         
-    LogDebug("Hook", "Start PatchFunc key=%p", key.target);
+    LOG_DEBUG << "Start PatchFunc key=" << key.target;
         
     if (g_funcOriginals.find(key) != g_funcOriginals.end()) {
         // already patched
-        LogDebug("Hook", "PatchFunc target=%p hook=%p: already patched.", runtime_addr, hook);
+        LOG_DEBUG << absl::StrFormat("Hook", "PatchFunc target=%p hook=%p: already patched.", runtime_addr, hook);
         return false;
     }
         
@@ -237,11 +236,11 @@ bool PatchFunction(void* target, void* hook) {
     BYTE prologue[8] = { 0 };
     SIZE_T read = 0;
     if (ReadProcessMemory(GetCurrentProcess(), runtime_addr, prologue, sizeof(prologue), &read) && read >= 4) {
-        LogDebug("Hook", "Prologue at %p: %02X %02X %02X %02X",
+        LOG_DEBUG << absl::StrFormat("Prologue at %p: %02X %02X %02X %02X",
             runtime_addr, prologue[0], prologue[1], prologue[2], prologue[3]);
     }
     else {
-        LogDebug("Hook", "Could not read prologue bytes at %p", runtime_addr);
+        LOG_DEBUG << absl::StrFormat("Could not read prologue bytes at %p", runtime_addr);
     }
         
     DetourTransactionBegin();
@@ -249,19 +248,19 @@ bool PatchFunction(void* target, void* hook) {
     LONG rc = DetourAttach(&(PVOID&)orig, hook);
     if (rc != NO_ERROR) {
         DetourTransactionAbort();
-        LogDebug("Hook", "DetourAttach failed rc=%ld for %p", rc, runtime_addr);
+        LOG_DEBUG << absl::StrFormat("DetourAttach failed rc=%ld for %p", rc, runtime_addr);
         return false;
     }
         
     rc = DetourTransactionCommit();
     if (rc != NO_ERROR) {
-        LogDebug("Hook", "DetourTransactionCommit failed rc=%ld for %p", rc, runtime_addr);
+        LOG_DEBUG << absl::StrFormat("DetourTransactionCommit failed rc=%ld for %p", rc, runtime_addr);
         return false;
     }
 
     g_funcOriginals.insert(std::make_pair(key, orig));
         
-    LogDebug("Hook", "Patched func %p -> %p (orig=%p)", runtime_addr, hook, orig);
+    LOG_DEBUG << absl::StrFormat("Patched func %p -> %p (orig=%p)", runtime_addr, hook, orig);
     return true;
 }
 
@@ -284,18 +283,18 @@ bool RestoreFunction(void* target, void* hook) {
     LONG rc = DetourDetach(&(PVOID&)orig, hook);
     if (rc != NO_ERROR) {
         DetourTransactionAbort();
-        LogDebug("Hook", "DetourDetach failed rc=%ld for %p", rc, target);
+        LOG_DEBUG << absl::StrFormat("DetourDetach failed rc=%ld for %p", rc, target);
         return false;
     }
 
     rc = DetourTransactionCommit();
     if (rc != NO_ERROR) {
-        LogDebug("Hook", "Detour commit failed rc=%ld for %p", rc, target);
+        LOG_DEBUG << absl::StrFormat("Detour commit failed rc=%ld for %p", rc, target);
         return false;
     }
 
     g_funcOriginals.erase(it);
-    LogDebug("Hook", "Restored func %p", target);
+    LOG_DEBUG << absl::StrFormat("Restored func %p", target);
 
     return true;
 }
@@ -306,12 +305,10 @@ void* GetPatchedFuncOrigFromVA(void* target_virtual_addr) {
     return (it == g_funcOriginals.end()) ? nullptr : it->second;
 }
 
-FuncPatchSet::FuncPatchSet(const char* n,
-    const std::initializer_list<std::pair<void*, void*>>& init)
-    : name(n), patches(init.begin(), init.end()) {}
-
 bool FuncPatchSet::ApplyAll() const {
+    LOG(INFO) << "Applying " << patches.size() << " patches.";
     for (auto& kv : patches) {
+        LOG(INFO) << "Applying " << kv.first << " -> " << kv.second;
         PatchFunction(kv.first, kv.second);
     }
     return true;
@@ -323,24 +320,62 @@ void FuncPatchSet::RestoreAll() const {
     }
 }
 
-AutoFuncPatchRegister::AutoFuncPatchRegister(const char* name,
-    std::initializer_list<std::pair<void*, void*>> init)
-{
-    static std::vector<FuncPatchSet> s_storage;
-    s_storage.emplace_back(name, init);
-    FuncPatchSet* p = &s_storage.back();
-
-    PatchRegistry::instance().Add({ std::string(name), nullptr, p });
+PatchRegistry* PatchRegistry::instance() {
+    static PatchRegistry inst;
+    LOG(INFO) << "Created patch registry " << &inst;
+    return &inst;
 }
 
-AutoVTablePatchRegister::AutoVTablePatchRegister(
-    const char* name,
-    uintptr_t vtableVA,
-    std::initializer_list<std::pair<const size_t, void*>> init)
-{
-    // Keep persistent storage to avoid dangling)
-    static std::vector<VTablePatchSet> s_vtStorage;
-    s_vtStorage.emplace_back(name, vtableVA, init);
-    VTablePatchSet* p = &s_vtStorage.back();
-    PatchRegistry::instance().Add({ std::string(name), p, nullptr });
+void PatchRegistry::Add(PatchRegistration reg) {
+    entries.emplace_back(std::move(reg));
 }
+
+void PatchRegistry::ApplyAll() {
+    for (auto& e : entries) {
+        if (e.vtable_patch) {
+            LOG_DEBUG << "Applying VTablePatch: " << e.name;
+            e.vtable_patch->ApplyAll();
+        }
+        if (e.func_patch) {
+            LOG_DEBUG << "Applying FuncPatch: " << e.name;
+            e.func_patch->ApplyAll();
+        }
+    }
+}
+
+void PatchRegistry::RestoreAll() {
+    for (auto& e : entries) {
+        if (e.vtable_patch) {
+            LOG_DEBUG << "Restoring VTablePatch: " << e.name;
+            e.vtable_patch->RestoreAll();
+        }
+        if (e.func_patch) {
+            LOG_DEBUG << "Restoring FuncPatch: " << e.name;
+            e.func_patch->RestoreAll();
+        }
+    }
+}
+
+size_t PatchRegistry::Size() const { return entries.size(); }
+
+//AutoFuncPatchRegister::AutoFuncPatchRegister(const char* name,
+//    std::initializer_list<std::pair<void*, void*>> init)
+//{
+//    static std::vector<FuncPatchSet> s_storage;
+//    s_storage.emplace_back(name, init);
+//    FuncPatchSet* p = &s_storage.back();
+//
+//    PatchRegistry::instance().Add({ std::string(name), nullptr, p });
+//}
+//
+//AutoVTablePatchRegister::AutoVTablePatchRegister(
+//    const char* name,
+//    uintptr_t vtableVA,
+//    std::initializer_list<std::pair<const size_t, void*>> init)
+//{
+//    // Keep persistent storage to avoid dangling)
+//    static std::vector<VTablePatchSet> s_vtStorage;
+//    s_vtStorage.emplace_back(name, vtableVA, init);
+//    VTablePatchSet* p = &s_vtStorage.back();
+//    PatchRegistry::instance().Add({ std::string(name), p, nullptr });
+//}

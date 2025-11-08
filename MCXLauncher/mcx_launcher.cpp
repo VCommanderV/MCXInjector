@@ -1,21 +1,33 @@
 #include <windows.h>
 #include <stdio.h>
-#include <detours.h>
 #include <WinBase.h>
 #include <cstdlib>
 #include <filesystem>
+#include <detours.h>
+
+#include "absl/base/log_severity.h"
+#include "absl/base/macros.h"
+#include "absl/log/globals.h"
+#include "absl/flags/parse.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
 
 static auto constexpr MCXI_VERSION = "0.0.1";
 
 int main(int argc, char** argv)
-{
+{   
+
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    absl::ParseCommandLine(argc, argv);
+    absl::InitializeLog();
+
     char* value = nullptr;
     size_t len = 0;
 
     errno_t err = _dupenv_s(&value, &len, "MCXI_EXE_PATH");
 
     if (err != 0 || value == nullptr) {
-        printf("MCXI_EXE_PATH env variable not set. bail.");
+        LOG(ERROR) << "MCXI_EXE_PATH env variable not set. bail.";
         return 1;
     }
     
@@ -33,10 +45,10 @@ int main(int argc, char** argv)
     auto hook_dll_path = (cwd / "MCXInjector.dll").string();
     const char* hook_dll = hook_dll_path.c_str();
 
-    printf("MCXInjector v%s\n\n", MCXI_VERSION);
-    printf("Target EXE = %s\n", target_exe);
-    printf("Workdir = %s\n", work_dir);
-    printf("Injector DLL = %s\n", hook_dll);
+    LOG(INFO) << "MCXInjector v" << MCXI_VERSION;
+    LOG(INFO) << "Target EXE = " << target_exe;
+    LOG(INFO) << "Workdir = " << work_dir;
+    LOG(INFO) << "Injector DLL = " << hook_dll;
   
     STARTUPINFOA si;
     ZeroMemory(&si, sizeof(si));
@@ -61,11 +73,11 @@ int main(int argc, char** argv)
     );
 
     if (!ok) {
-        printf("Failed to start process with Detour DLL. Error %lu\n", GetLastError());
+        LOG(ERROR) << "Failed to start process with Detour DLL. Error " << GetLastError();
         return 1;
     }
 
-    printf("Started process %lu with hook DLL %s\n", pi.dwProcessId, hook_dll);
+    LOG(INFO) << "Started target process PID=" << pi.dwProcessId;
 
     ResumeThread(pi.hThread);
 
@@ -73,7 +85,7 @@ int main(int argc, char** argv)
 
     DWORD result = 0;
     if (!GetExitCodeProcess(pi.hProcess, &result)) {
-        printf("withdll.exe: GetExitCodeProcess failed: %ld\n", GetLastError());
+        LOG(ERROR) << "withdll.exe: GetExitCodeProcess failed: " << GetLastError();
         return 9010;
     }
 

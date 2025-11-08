@@ -1,15 +1,8 @@
 #pragma once
-#include "File.hpp"
+#include "file.hpp"
 #include "mcx_inject.hpp"
 #include <cstddef>
 #include <cstdint>
-
-# pragma region Funcs VAs
-static constexpr uintptr_t va_FitIniFile_vftable = 0x0077c328;
-static constexpr uintptr_t va_FitIniFile_ctor = 0x00649090;
-static constexpr uintptr_t va_FitIniFile_open = 0x00649f10;
-static constexpr uintptr_t va_FitIniFile_readIdLong = 0x0064a190;
-# pragma endregion
 
 class FitIniFile : public File {
 # pragma region Fields
@@ -25,8 +18,21 @@ public:
     static FitIniFile* fromPtr(void* p) noexcept {
         return reinterpret_cast<FitIniFile*>(p);
     }
+
+    long readIdLong(char* key, long* out_value);
+
+    int open(char* file, int flags, int extra);
 };
 
+
+# pragma region Funcs VAs
+static constexpr uintptr_t va_FitIniFile_vftable = 0x0077c328;
+static constexpr uintptr_t va_FitIniFile_ctor = 0x00649090;
+static constexpr uintptr_t va_FitIniFile_open = 0x00649f10;
+static constexpr uintptr_t va_FitIniFile_readIdLong = 0x0064a190;
+# pragma endregion
+
+#pragma region Layout asserts
 static_assert(sizeof(FitIniFile) == 0x60, "FitIniFile size mismatch");
 static_assert(alignof(FitIniFile) == 0x4, "FitIniFile align mismatch");
 
@@ -35,3 +41,4 @@ static_assert(offsetof(FitIniFile, field_0x4c) == 0x4c, "FitIniFile.field_0x4C o
 static_assert(offsetof(FitIniFile, field_0x50) == 0x50, "FitIniFile.field_0x50 offset mismatch");
 static_assert(offsetof(FitIniFile, field_0x54) == 0x54, "FitIniFile.field_0x54 offset mismatch");
 static_assert(offsetof(FitIniFile, field_0x5c) == 0x5c, "FitIniFile.field_0x5c offset mismatch");
+# pragma endregion

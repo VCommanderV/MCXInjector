@@ -1,0 +1,7 @@
+[submodule "external/detours"]
+	path = external/detours
+	url = https://github.com/microsoft/Detours
+
+[submodule "external/abseil"]
+	path = external/abseil
+	url = https://github.com/abseil/abseil-cpp.git

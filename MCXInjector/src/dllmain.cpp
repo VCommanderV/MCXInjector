@@ -4,6 +4,12 @@
 #include "detours.h"
 #include "mcx_inject.hpp"
 
+#include "absl/base/log_severity.h"
+#include "absl/base/macros.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
+
 static void EnsureConsoleAndStdIO()
 {
     if (!AttachConsole(ATTACH_PARENT_PROCESS)) {
@@ -30,19 +36,22 @@ static void EnsureConsoleAndStdIO()
     std::cin.clear();
 
     SetConsoleTitleA("MCX Injector Console");
+
     HWND hw = GetConsoleWindow();
     if (hw) {
         ShowWindow(hw, SW_SHOW);
         SetForegroundWindow(hw);
     }
-    printf("Hello\n");
-    fflush(stdout);
+
+    absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfo);
+    absl::InitializeLog();
+    LOG_DEBUG << "Initialized logging system";
 }
 
 static DWORD WINAPI ThreadAttach(LPVOID)
 {
     EnsureConsoleAndStdIO();
-    PatchRegistry::instance().ApplyAll();
+    PatchRegistry::instance()->ApplyAll();
     return 0;
 }
 
@@ -67,7 +76,7 @@ static BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
         if (h) CloseHandle(h);
     }
     else if (reason == DLL_PROCESS_DETACH) {
-        PatchRegistry::instance().RestoreAll();
+        PatchRegistry::instance()->RestoreAll();
     }
 
     return TRUE;

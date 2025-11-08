@@ -7,20 +7,20 @@
 #include <initializer_list>
 #include <detours.h>
 
+#include "absl/base/log_severity.h"
+#include "absl/base/macros.h"
+#include "absl/log/globals.h"
+#include "absl/log/initialize.h"
+#include "absl/log/log.h"
+#include <absl/strings/str_format.h>
+
+#define LOG_DEBUG DLOG(INFO)
+#define LOGF_DEBUG(fmt, ...) DLOG(INFO) << absl::StrFormat(fmt, __VA_ARGS__)
+
 static constexpr uintptr_t MCX_IMAGE_BASE = 0x00600000;
 
 // honours __thiscall ctors convetions to put `this` in EAX before returning.
 #define MOV_THIS_TO_EAX(this_ptr) __asm { mov eax, this_ptr }
-
-struct VTableKey {
-    void** vtable;
-    size_t slot_index;
-    bool operator==(VTableKey const& o) const noexcept;
-};
-
-struct VTableKeyHash {
-    size_t operator()(VTableKey const& k) const noexcept;
-};
 
 void LogDebug(const char* fmt, const char* tag = "", ...);
 void SetModuleBaseOnce(HMODULE module_handle) noexcept;
@@ -30,6 +30,8 @@ void* GetPatchedOriginal(void** vtable, size_t slo_index);
 void* GetPatchedFuncOrigFromVA(void* target_virtual_addr);
 uintptr_t GetModuleBaseOnce() noexcept;
 uintptr_t GetRuntimeAddr(uintptr_t virtual_addr, uintptr_t img_base_addr = MCX_IMAGE_BASE) noexcept;
+bool PatchFunction(void* target, void* hook);
+bool RestoreFunction(void* target, void* hook);
 
 // Gets the trampoline to the patched function from its VA.
 template <typename Fn>
@@ -41,6 +43,17 @@ inline Fn GetTrampoline(uintptr_t virtual_addr) {
 }
 
 #define MCX_RUNTIME_ADDR(va) (GetRuntimeAddr(static_cast<uintptr_t>(va)))
+
+
+struct VTableKey {
+    void** vtable;
+    size_t slot_index;
+    bool operator==(VTableKey const& o) const noexcept;
+};
+
+struct VTableKeyHash {
+    size_t operator()(VTableKey const& k) const noexcept;
+};
 
 struct VTablePatchSet {
     const char* name;
@@ -58,7 +71,6 @@ struct VTablePatchSet {
 VTablePatchSet MakeVTablePatchSet(const char* name, uintptr_t va,
     std::initializer_list<std::pair<const size_t, void*>> init);
 
-
 struct FuncPatchKey {
     void* target;
     bool operator==(const FuncPatchKey& other) const noexcept;
@@ -75,17 +87,28 @@ namespace std {
     };
 }
 
-bool PatchFunction(void* target, void* hook);
-bool RestoreFunction(void* target, void* hook);
+struct PatchEntry {
+    void* target;
+    void* hook;
+};
 
-struct FuncPatchSet {
-    const char* name;
-    std::unordered_map<void*, void*> patches;
+class FuncPatchSet {
+public:
+    FuncPatchSet(const char* name,
+        std::initializer_list<PatchEntry> items)
+        : name(name)
+    {
+        for (auto& e : items)
+            patches.emplace_back(e.target, e.hook);
+    }
 
-    FuncPatchSet(const char* n, const std::initializer_list<std::pair<void*, void*>>& init);
-
+    // your existing ApplyAll(), RestoreAll(), etc.
+public:
     bool ApplyAll() const;
     void RestoreAll() const;
+private:
+    std::string name;
+    std::vector<std::pair<void*, void*>> patches;
 };
 
 struct PatchRegistration {
@@ -96,58 +119,45 @@ struct PatchRegistration {
 
 class PatchRegistry {
 public:
-    // singleton
-    static PatchRegistry& instance() {
-        static PatchRegistry inst;
-        return inst;
-    }
+    static PatchRegistry* instance();
 
-    void Add(PatchRegistration reg) {
-        entries.push_back(std::move(reg));
-    }
-
-    void ApplyAll() {
-        for (auto& e : entries) {
-            if (e.vtable_patch) {
-                LogDebug("Hook", "Applying VTablePatch: %s", e.name.c_str());
-                e.vtable_patch->ApplyAll();
-            }
-            if (e.func_patch) {
-                LogDebug("Hook", "Applying FuncPatch: %s", e.name.c_str());
-                e.func_patch->ApplyAll();
-            }
-        }
-    }
-
-    void RestoreAll() {
-        for (auto& e : entries) {
-            if (e.vtable_patch) {
-                LogDebug("Hook", "Restoring VTablePatch: %s", e.name.c_str());
-                e.vtable_patch->RestoreAll();
-            }
-            if (e.func_patch) {
-                LogDebug("Hook", "Restoring FuncPatch: %s", e.name.c_str());
-                e.func_patch->RestoreAll();
-            }
-        }
-    }
-
-    size_t Size() const { return entries.size(); }
-
+    void Add(PatchRegistration reg);
+    void ApplyAll();
+    void RestoreAll();
+    size_t Size() const;
 private:
     PatchRegistry() = default;
     std::vector<PatchRegistration> entries;
 };
 
-#define CAT2(a,b) a##b
-#define CAT(a,b)  CAT2(a,b)
-
 struct AutoFuncPatchRegister {
-    AutoFuncPatchRegister(const char* name, std::initializer_list<std::pair<void*, void*>> init);
+    AutoFuncPatchRegister(
+        const char* name,
+        std::initializer_list<PatchEntry> items
+    ) {
+        PatchRegistry::instance()->Add({
+            name,
+            nullptr,
+            new FuncPatchSet(name, items)
+        });
+    }
 };
 
-struct AutoVTablePatchRegister {
-    AutoVTablePatchRegister(const char* name,
-        uintptr_t vtableVA,
-        std::initializer_list<std::pair<const size_t, void*>> init);
-};
+// From detours: "C++ does not support converting a pointer to a member
+// function to an arbitrary pointer.  To get a raw pointer, the address of
+// the member function must be moved into a temporary member-function
+// pointer, then passed by taking it's address, then de-referencing it.
+// 
+// This is some MSVC-specific evil to do what's explained above.
+// Obtain the raw pointer-to-member-function that MSVC stores in a struct.
+// struct {
+//   void* func;     // actual function address
+//   int   adjust;   // this-pointer adjustment
+//   // other field?
+//};
+template <typename Class, typename Method>
+void* GetMemberPtr(Method Class::* pmf) {
+    void* out;
+    memcpy(&out, &pmf, sizeof(out));
+    return out;
+}
