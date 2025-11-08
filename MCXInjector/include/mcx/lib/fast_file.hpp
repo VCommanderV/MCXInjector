@@ -25,12 +25,6 @@ struct FastFileEntry {
     FastFileEntryHeader* data;
 };
 
-enum FastFileSeekOrigin : long {
-    SeekSet = 0,
-    SeekCur = 1,
-    SeekEnd = 2
-};
-
 class FastFile {
 # pragma region Fields
 public:
@@ -75,7 +69,7 @@ public:
     void closeFast(long entry_idx);
 
     // long __thiscall FastFile::seekFast(long, long, long)
-    long seekFast(long entry_idx, long offset, FastFileSeekOrigin seek_orig);
+    long seekFast(long entry_idx, long offset, long seek_orig);
 
     // long __thiscall FastFile::closeFast(long) 
     long sizeFast(long entry_idx);

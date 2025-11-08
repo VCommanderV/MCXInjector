@@ -257,7 +257,7 @@ void FastFile::closeFast(long entry_idx)
     }
 }
 
-long FastFile::seekFast(long entry_idx, long offset, FastFileSeekOrigin seek_orig)
+long FastFile::seekFast(long entry_idx, long offset, long seek_orig)
 {
     if (entry_idx < 0 || entry_idx >= this->num_entries)
     {
@@ -274,19 +274,19 @@ long FastFile::seekFast(long entry_idx, long offset, FastFileSeekOrigin seek_ori
     long data_size = entry->data->size;
 
     switch (seek_orig) {
-        case SeekSet:
+        case SEEK_SET:
             new_offset = offset;
             if (offset > data_size) {
                 return ERR_BADF_SEEK_OUT_OF_BOUNDS;
             }
             break;
-        case SeekCur:
+        case SEEK_CUR:
             new_offset = entry->offset_in_file + offset;
             if (new_offset > data_size) {
                 return ERR_BADF_SEEK_OUT_OF_BOUNDS;
             }
             break;
-        case SeekEnd:
+        case SEEK_END:
             new_offset = data_size + offset;
             if (abs(offset) > data_size || offset > 0) {
                 return ERR_BADF_SEEK_OUT_OF_BOUNDS;
