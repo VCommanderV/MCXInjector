@@ -7,20 +7,22 @@ constexpr auto ERR_BADF_INVALID_ENTRY = 0xBADF0010;   // -0x4520fff0: Invalid en
 constexpr auto ERR_BADF_SEEK_OUT_OF_BOUNDS = 0xBADF0008;    // -0x4520fff8: Seek position out of bounds;
 constexpr auto ERR_BADF_INVALID_OFFSET = 0xBADF0009;  // -0x4520fff7: Invalid offset (-1);
 
+constexpr auto FF_ENTRY_NAME_MAX_LEN = 250;
+
 #pragma pack(push, 1)
 struct FastFileEntryHeader
 {
-    uint32_t size;                 // +0x00, not compressed size
-    uint32_t compressed_size;      // +0x04
-    uint32_t uncompressed_size;    // +0x08
-    char name[0xFE - 4];           // +0x0C, 250 bytes for name
+    uint32_t size;                    // 0x00
+    uint32_t compressed_size;         // 0x04
+    uint32_t uncompressed_size;       // 0x08
+    char name[FF_ENTRY_NAME_MAX_LEN]; // 0x0C: 250 bytes for name
 };
 #pragma pack(pop)
 
 struct FastFileEntry {
     uint32_t has_valid_data;     // 0x0: non-zero means this entry contains valid data
     uint32_t offset_in_file;     // 0x4: unknown purpose, always initialized to 0
-    FastFileEntryHeader* data;   // points to 0x106 bytes:
+    FastFileEntryHeader* data;
 };
 
 enum FastFileSeekOrigin : long {
@@ -29,11 +31,6 @@ enum FastFileSeekOrigin : long {
     SeekEnd = 2
 };
 
-/*
-[4 bytes] number_of_entries
-repeat number_of_entries times:
-    [0x106 bytes] raw entry data
-*/
 class FastFile {
 # pragma region Fields
 public:
