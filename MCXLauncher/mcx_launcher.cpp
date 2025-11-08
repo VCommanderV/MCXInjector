@@ -12,7 +12,7 @@
 #include "absl/log/initialize.h"
 #include "absl/log/log.h"
 
-static auto constexpr MCXI_VERSION = "0.0.1";
+static auto constexpr MCXI_VERSION = "0.17.1";
 
 int main(int argc, char** argv)
 {   

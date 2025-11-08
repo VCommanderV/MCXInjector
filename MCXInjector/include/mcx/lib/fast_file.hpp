@@ -111,16 +111,25 @@ static constexpr uintptr_t va_FastFile_lzSizeFast = 0x006452c0;
 # pragma endregion
 
 #pragma region Layout asserts
-static_assert(sizeof(FastFileEntry) == 0xc, "FastFileEntry size mismatch");
-static_assert(sizeof(FastFileEntryHeader) == 0x106, "LzHeader size mismatch");
+ASSERT_SIZE(FastFileEntry, 0x0C);
+ASSERT_ALIGN(FastFileEntry, 0x4);
+ASSERT_FIELD_OFFSET(FastFileEntry, has_valid_data, 0x00);
+ASSERT_FIELD_OFFSET(FastFileEntry, offset_in_file, 0x04);
+ASSERT_FIELD_OFFSET(FastFileEntry, data, 0x8);
 
-static_assert(sizeof(FastFile) == 0x18, "FastFile size mismatch");
-static_assert(alignof(FastFile) == 4, "FastFile alignment mismatch");
+ASSERT_SIZE(FastFileEntryHeader, 0x106);
+ASSERT_ALIGN(FastFileEntryHeader, 0x1);
+ASSERT_FIELD_OFFSET(FastFileEntryHeader, size, 0x00);
+ASSERT_FIELD_OFFSET(FastFileEntryHeader, compressed_size, 0x04);
+ASSERT_FIELD_OFFSET(FastFileEntryHeader, uncompressed_size, 0x08);
+ASSERT_FIELD_OFFSET(FastFileEntryHeader, name, 0x0c);
 
-static_assert(offsetof(FastFile, num_entries) == 0x00, "FastFile.num_entries offset mismatch");
-static_assert(offsetof(FastFile, entries) == 0x04, "FastFile.entries offset mismatch");
-static_assert(offsetof(FastFile, filename) == 0x08, "FastFile.filename offset mismatch");
-static_assert(offsetof(FastFile, file_handle) == 0x0C, "FastFile.file_handle offset mismatch");
-static_assert(offsetof(FastFile, file_size) == 0x10, "FastFile.file_size offset mismatch");
-static_assert(offsetof(FastFile, file_cursor) == 0x14, "FastFile.file_cursor offset mismatch");
+ASSERT_SIZE(FastFile, 0x18);
+ASSERT_ALIGN(FastFile, 0x4);
+ASSERT_FIELD_OFFSET(FastFile, num_entries, 0x00);
+ASSERT_FIELD_OFFSET(FastFile, entries, 0x04);
+ASSERT_FIELD_OFFSET(FastFile, filename, 0x08);
+ASSERT_FIELD_OFFSET(FastFile, file_handle, 0x0C);
+ASSERT_FIELD_OFFSET(FastFile, file_size, 0x10);
+ASSERT_FIELD_OFFSET(FastFile, file_cursor, 0x14);
 # pragma endregion

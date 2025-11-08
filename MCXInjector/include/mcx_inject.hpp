@@ -17,6 +17,16 @@
 #define LOG_DEBUG DLOG(INFO)
 #define LOGF_DEBUG(fmt, ...) DLOG(INFO) << absl::StrFormat(fmt, __VA_ARGS__)
 
+#define ASSERT_FIELD_OFFSET(type, field, offset) \
+    static_assert(offsetof(type, field) == (offset), \
+                  #type "." #field " offset mismatch: expected " #offset)
+
+#define ASSERT_SIZE(type, size) \
+    static_assert(sizeof(type) == size, #type " size mismatch: expected " #size)
+
+#define ASSERT_ALIGN(type, align) \
+    static_assert(alignof(type) == align, #type "align mismatch: expected: " #align)
+
 static constexpr uintptr_t MCX_IMAGE_BASE = 0x00600000;
 
 // honours __thiscall ctors convetions to put `this` in EAX before returning.

@@ -115,26 +115,25 @@ static constexpr uintptr_t va_File_skip = 0x00646940;
 #pragma endregion
 
 #pragma region Layout asserts
-static_assert(sizeof(File) == 0x4C, "File size mismatch");
-static_assert(alignof(File) == 4, "File alignment mismatch");
-
-static_assert(offsetof(File, vtable) == 0x00, "File.vtable offset mismatch");
-static_assert(offsetof(File, filename_0x04) == 0x04, "File.filename_0x04 offset mismatch");
-static_assert(offsetof(File, open_flags_0x08) == 0x08, "File.open_flags_0x08 offset mismatch");
-static_assert(offsetof(File, filehandle_0xc) == 0x0C, "File.filehandle_0xc offset mismatch");
-static_assert(offsetof(File, p_fast_file_ptr_0x10) == 0x10, "File.p_fast_file_ptr_0x10 offset mismatch");
-static_assert(offsetof(File, fastfile_handle) == 0x14, "File.fastfile_handle offset mismatch");
-static_assert(offsetof(File, file_size_0x18) == 0x18, "File.file_size_0x18 offset mismatch");
-static_assert(offsetof(File, field_0x1c) == 0x1C, "File.field_0x1c offset mismatch");
-static_assert(offsetof(File, field_0x20) == 0x20, "File.field_0x20 offset mismatch");
-static_assert(offsetof(File, children_0x24) == 0x24, "File.children_0x24 offset mismatch");
-static_assert(offsetof(File, children_count) == 0x28, "File.children_count offset mismatch");
-static_assert(offsetof(File, field_0x2c) == 0x2C, "File.field_0x2c offset mismatch");
-static_assert(offsetof(File, field_0x30) == 0x30, "File.field_0x30 offset mismatch");
-static_assert(offsetof(File, field_0x34) == 0x34, "File.field_0x34 offset mismatch");
-static_assert(offsetof(File, field_0x38) == 0x38, "File.field_0x38 offset mismatch");
-static_assert(offsetof(File, field_0x3C) == 0x3C, "File.field_0x3C offset mismatch");
-static_assert(offsetof(File, field_0x40) == 0x40, "File.field_0x40 offset mismatch");
-static_assert(offsetof(File, flags_0x44) == 0x44, "File.flags_0x44 offset mismatch");
-static_assert(offsetof(File, fastfile_buffer_0x48) == 0x48, "File.fastfile_buffer_0x48 offset mismatch");
+ASSERT_SIZE(File, 0x4C);
+ASSERT_ALIGN(File, 0x4);
+ASSERT_FIELD_OFFSET(File, vtable, 0x00);
+ASSERT_FIELD_OFFSET(File, filename_0x04, 0x04);
+ASSERT_FIELD_OFFSET(File, open_flags_0x08, 0x08);
+ASSERT_FIELD_OFFSET(File, filehandle_0xc, 0x0C);
+ASSERT_FIELD_OFFSET(File, p_fast_file_ptr_0x10, 0x10);
+ASSERT_FIELD_OFFSET(File, fastfile_handle, 0x14);
+ASSERT_FIELD_OFFSET(File, file_size_0x18, 0x18);
+ASSERT_FIELD_OFFSET(File, field_0x1c, 0x1C);
+ASSERT_FIELD_OFFSET(File, field_0x20, 0x20);
+ASSERT_FIELD_OFFSET(File, children_0x24, 0x24);
+ASSERT_FIELD_OFFSET(File, children_count, 0x28);
+ASSERT_FIELD_OFFSET(File, field_0x2c, 0x2C);
+ASSERT_FIELD_OFFSET(File, field_0x30, 0x30);
+ASSERT_FIELD_OFFSET(File, field_0x34, 0x34);
+ASSERT_FIELD_OFFSET(File, field_0x38, 0x38);
+ASSERT_FIELD_OFFSET(File, field_0x3C, 0x3C);
+ASSERT_FIELD_OFFSET(File, field_0x40, 0x40);
+ASSERT_FIELD_OFFSET(File, flags_0x44, 0x44);
+ASSERT_FIELD_OFFSET(File, fastfile_buffer_0x48, 0x48);
 #pragma endregion
