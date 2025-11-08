@@ -27,10 +27,12 @@
 #define ASSERT_ALIGN(type, align) \
     static_assert(alignof(type) == align, #type "align mismatch: expected: " #align)
 
-static constexpr uintptr_t MCX_IMAGE_BASE = 0x00600000;
-
 // honours __thiscall ctors convetions to put `this` in EAX before returning.
 #define MOV_THIS_TO_EAX(this_ptr) __asm { mov eax, this_ptr }
+
+#define MCXI_CTOR_HOOK void static __forceinline __fastcall
+
+static constexpr uintptr_t MCX_IMAGE_BASE = 0x00600000;
 
 void LogDebug(const char* fmt, const char* tag = "", ...);
 void SetModuleBaseOnce(HMODULE module_handle) noexcept;

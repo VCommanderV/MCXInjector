@@ -19,6 +19,8 @@ public:
         return reinterpret_cast<FitIniFile*>(p);
     }
 
+    FitIniFile();
+
     long readIdLong(char* key, long* out_value);
 
     int open(char* file, int flags, int extra);

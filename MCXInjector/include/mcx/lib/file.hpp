@@ -70,6 +70,8 @@ public:
     static File* fromPtr(void* p) noexcept {
         return reinterpret_cast<File*>(p);
     }
+
+    File();
 };
 
 #pragma region Methods VAs
