@@ -3,6 +3,10 @@
 #include <cstdint>
 #include "mcx_inject.hpp"
 
+#ifndef ENABLE_LOG_FASTFILE
+#define ENABLE_LOG_FASTFILE 0
+#endif
+
 constexpr auto ERR_BADF_INVALID_ENTRY = 0xBADF0010;   // -0x4520fff0: Invalid entry index or no valid data;
 constexpr auto ERR_BADF_SEEK_OUT_OF_BOUNDS = 0xBADF0008;    // -0x4520fff8: Seek position out of bounds;
 constexpr auto ERR_BADF_INVALID_OFFSET = 0xBADF0009;  // -0x4520fff7: Invalid offset (-1);

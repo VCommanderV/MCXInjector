@@ -33,6 +33,21 @@ target_compile_definitions(MCXInjector PRIVATE
     _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR
 )
 
+set(LOG_SUBSYSTEMS
+    HEAP
+    BASEFILE
+    FASTFILE
+    FITINIFILE
+)
+
+foreach(subsys IN LISTS LOG_SUBSYSTEMS)
+    option(MCXI_ENABLE_${subsys}_LOGGING "Enable ${subsys} logging" OFF)
+    
+    if(MCXI_ENABLE_${subsys}_LOGGING)
+        target_compile_definitions(MCXInjector PRIVATE ENABLE_LOG_${subsys}=1)
+    endif()
+endforeach()
+
 set_target_properties(MCXInjector PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )

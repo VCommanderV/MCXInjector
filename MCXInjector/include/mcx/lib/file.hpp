@@ -3,6 +3,9 @@
 #include <cstdint>
 #include "mcx_inject.hpp"
 
+#ifndef ENABLE_LOG_BASEFILE
+#define ENABLE_LOG_BASEFILE 0
+#endif
 
 // 76 bytes, 4 bytes alignment.
 class File {

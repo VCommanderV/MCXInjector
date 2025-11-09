@@ -2,7 +2,7 @@
 #include "mcx/lib/fast_file.hpp"
 #include "mcx/lib/lz_decomp.hpp"
 
-void __forceinline __fastcall Hook_FastFile_ctor(FastFile* this_ptr, void* unused_edx)
+MCXI_CTOR_HOOK Hook_FastFile_ctor(FastFile* this_ptr, void* unused_edx)
 {
     this_ptr->entries = (FastFileEntry*)0x0;
     this_ptr->num_entries = 0;
@@ -22,7 +22,7 @@ FastFile::FastFile()
 
 int FastFile::open(char* filename)
 {
-    // LOGF_DEBUG("FastFile::open(%s)", filename);
+    HOOK_DLOG(FASTFILE, INFO) << "Opening file " << filename;
 
     size_t len = strlen(filename) + 1;
 
@@ -45,7 +45,7 @@ int FastFile::open(char* filename)
         }
     }
 
-    // LOGF_DEBUG("FastFile(%s) handle=%p size=%d", filename, handle, this->file_size);
+    HOOK_DLOGF(FASTFILE, INFO, "FastFile(%s) handle=%p size=%d", filename, handle, this->file_size);
 
     // seek the file to the beginning
     DWORD new_file_ptr_low = SetFilePointer(handle, 0, NULL, FILE_BEGIN);
@@ -55,12 +55,12 @@ int FastFile::open(char* filename)
     DWORD read_bytes = 0;
     BOOL read_result = ReadFile(handle, &this->num_entries, 4, &read_bytes, (LPOVERLAPPED)nullptr);
 
-    //LOGF_DEBUG("FastFile(%s) handle=%p size=%d entries=%d",
-    //    filename,
-    //    handle,
-    //    this->file_size,
-    //    this->num_entries
-    //);
+    HOOK_DLOGF(FASTFILE, INFO, "FastFile(%s) handle=%p size=%d entries=%d",
+        filename,
+        handle,
+        this->file_size,
+        this->num_entries
+    );
 
     this->file_cursor += 4;
 
@@ -111,7 +111,7 @@ long FastFile::lzSizeFast(long entry_idx)
     {
         long size = this->entries[entry_idx].data->uncompressed_size;
 
-        // LOGF_DEBUG("lzSizeFast(%s) => %d", this->filename, size);
+        HOOK_DLOGF(FASTFILE, INFO, "lzSizeFast(%s) => %d", this->filename, size);
 
         return size;
     }
@@ -137,7 +137,7 @@ long FastFile::openFast(char* filename)
             entry.has_valid_data = 1;
             entry.offset_in_file = 0;
 
-            // LOGF_DEBUG("FastFile::fastOpen entry[%d] %s", i, entry.data->name);
+            HOOK_DLOGF(FASTFILE, INFO, "FastFile::fastOpen entry[%d] %s", i, entry.data->name);
 
             return i;
         }
@@ -217,7 +217,7 @@ long FastFile::readFast(long entry_idx, void* out_buffer, long offset)
 
     auto x = LZDecomp((unsigned char*)out_buffer, g_LZPacketBuffer, uncompressed_size);
 
-    //LOGF_DEBUG("FastFile::fastRead decompressed '%s'.'%s' %d => %d (%d)", this->filename, entry.data->name, compressed_size, uncompressed_size, x);
+    HOOK_DLOGF(FASTFILE, INFO, "FastFile::fastRead decompressed '%s'.'%s' %d => %d (%d)", this->filename, entry.data->name, compressed_size, uncompressed_size, x);
 
     return x & (x != compressed_size) - 1;
 }

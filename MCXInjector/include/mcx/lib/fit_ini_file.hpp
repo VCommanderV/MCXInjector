@@ -4,6 +4,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#ifndef ENABLE_LOG_FITINIFILE
+#define ENABLE_LOG_FITINIFILE 0
+#endif
+
 class FitIniFile : public File {
 # pragma region Fields
 public:

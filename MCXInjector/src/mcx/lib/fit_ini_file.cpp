@@ -5,7 +5,7 @@
 
 
 // __thiscall FitIniFile::FitIniFile(void)
-static void __fastcall Hook_FitIniFile_ctor(FitIniFile* this_ptr, void* edx_unused)
+MCXI_CTOR_HOOK Hook_FitIniFile_ctor(FitIniFile* this_ptr, void* edx_unused)
 {
     File* file = reinterpret_cast<File*>(this_ptr);
     new (file) File();
@@ -34,12 +34,12 @@ int FitIniFile::open(char* file, int flags, int extra)
     auto orig = GetTrampoline<int(__thiscall*)(FitIniFile*, char*, int, int)>(va_FitIniFile_open);
     auto ret = orig(this, file, flags, extra);
 
-    //LOGF_DEBUG("FitIniFile::open(%p,%d) => this=%p. (%s)",
-    //    (void*)file,
-    //    flags,
-    //    this,
-    //    this->filename_0x04
-    //);
+    HOOK_DLOGF(FITINIFILE, INFO, "FitIniFile::open(%p,%d) => this=%p. (%s)",
+        (void*)file,
+        flags,
+        this,
+        this->filename_0x04
+    );
 
     return ret;
 }
@@ -48,7 +48,7 @@ long FitIniFile::readIdLong(char* key, long* out_value)
 {
     auto orig = GetTrampoline<long(__thiscall*)(void*, char*, long*)>(va_FitIniFile_readIdLong);
     long ret = orig(this, key, out_value);
-    // LOGF_DEBUG("FitIniFile::readIdLong('%s') => %d (%d)", key, ret == 0 ? *out_value : 0, ret);
+    HOOK_DLOGF(FITINIFILE, INFO, "FitIniFile::readIdLong('%s') => %d (%d)", key, ret == 0 ? *out_value : 0, ret);
     return ret;
 }
 

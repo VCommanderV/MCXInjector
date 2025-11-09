@@ -1,4 +1,5 @@
 #pragma once
+
 #include <windows.h>
 #include <string>
 #include <cstdint>
@@ -15,7 +16,22 @@
 #include <absl/strings/str_format.h>
 
 #define LOG_DEBUG DLOG(INFO)
+
 #define LOGF_DEBUG(fmt, ...) DLOG(INFO) << absl::StrFormat(fmt, __VA_ARGS__)
+
+#define LOGF(severity, fmt, ...) LOG(severity) << absl::StrFormat(fmt, __VA_ARGS__)
+
+#define HOOK_LOG(subsys, sev) \
+    if constexpr (ENABLE_LOG_##subsys) LOG(sev)
+
+#define HOOK_DLOG(subsys, sev) \
+    if constexpr (ENABLE_LOG_##subsys) DLOG(sev)
+
+#define HOOK_LOGF(subsys, sev, fmt, ...) \
+    if constexpr (ENABLE_LOG_##subsys) LOG(sev) << absl::StrFormat(fmt, __VA_ARGS__)
+
+#define HOOK_DLOGF(subsys, sev, fmt, ...) \
+    if constexpr (ENABLE_LOG_##subsys) DLOG(sev) << absl::StrFormat(fmt, __VA_ARGS__)
 
 #define ASSERT_FIELD_OFFSET(type, field, offset) \
     static_assert(offsetof(type, field) == (offset), \
