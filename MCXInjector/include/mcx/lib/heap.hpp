@@ -10,11 +10,13 @@
 #define NO_ERR	0
 #endif
 
-#ifndef SAFE_HEAP
+#ifndef DEBUG
+#define CHECK_HEAP
 #define SAFE_HEAP
 #endif
 
 constexpr auto ERR_HEAP_OUT_OF_MEMORY = 0xbadd0001;	// -0x4522ffff
+constexpr auto ERR_HEAP_CORRUPTED = 0xbadd0005;   // -0x4522fffb
 constexpr auto ERR_HEAP_ALLOC_TOO_BIG = 0xbadd0007; // -0x4522fff9
 constexpr auto ERR_HEAP_FAILED_COMMIT = 0xbadd0008;	// -0x4522fff8
 constexpr auto ERR_HEAP_FAILED_ALLOC = 0xbadd0009;	// -0x4522fff7
@@ -127,10 +129,12 @@ public:
 	HeapBlockPtr first_block;
 	size_t heap_size;
 	BOOL malloc_fatals;
-	long heap_state;
+	long last_error;
 	char* heap_name;
 public:
 	UserHeap();
+
+	~UserHeap();
 
 	// long __thiscall InitNamedUserHeap_FUN_00647d40(size_t heap_size, char *heap_name)
 	long init(size_t heap_size, char* heap_name);
@@ -141,19 +145,35 @@ public:
 	// void* __thiscall UserHeap::malloc(size_t)
 	void* malloc(size_t mem_size);
 
+	// void __thiscall UserHeap::destroy(void)
+	void destroy();
+
+	// unsigned long __thiscall UserHeap::coreLeft(void)
+	size_t coreLeft();
+
+	// unsigned long __thiscall UserHeap::totalCoreLeft(void)
+	size_t totalCoreLeft();
+
+	// long __thiscall UserHeap::getLastError(void)
+	// NOTE: inlined
+	long getLastError();
+
+	// void __thiscall UserHeap::walkHeap(int,int,char *)
+	void walkHeap(BOOL param_1, BOOL param_2, const char* message);
+
+	// virtual unsigned char __thiscall UserHeap::heapType(void)
+	unsigned char heapType();
+
 	// protected void __thiscall UserHeap::relink(struct HeapBlock *)
 	__forceinline void relink(HeapBlockPtr new_block);
 
 	// protected void __thiscall UserHeap::unlink(struct HeapBlock *)
 	__forceinline void unlink(HeapBlockPtr block_to_unlink);
 
-	// public: void __thiscall UserHeap::walkHeap(int,int,char *)
-	void walkHeap(BOOL param_1, BOOL param_2, char* message);
-
 	// protected BOOL __thiscall UserHeap::mergeWithLower(struct HeapBlock *)
 	BOOL mergeWithLower(HeapBlockPtr freed_block);
 protected:
-	__forceinline void conditionalRelink(HeapBlock* block);
+	__forceinline void sort(HeapBlock* block);
 };
 
 class HeapList {

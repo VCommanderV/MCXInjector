@@ -286,8 +286,15 @@ MCXI_CTOR_HOOK Hook_UserHeap_ctor(UserHeap* this_ptr, void* edx_unused) {
 	this_ptr->heap_end = (HeapBlock*)0x0;
 	this_ptr->first_block = (HeapBlock*)0x0;
 	this_ptr->heap_size = 0;
+
+#ifdef CHECK_HEAP
+	this_ptr->malloc_fatals = TRUE;
+#else
+	this_ptr->malloc_fatals = FALSE;
+#endif	
+
 	this_ptr->malloc_fatals = 0;
-	this_ptr->heap_state = 0;
+	this_ptr->last_error = 0;
 	MOV_THIS_TO_EAX(this_ptr);
 }
 
@@ -297,6 +304,17 @@ UserHeap::UserHeap() : HeapManager()
 	Hook_UserHeap_ctor(this, nullptr);
 }
 #pragma warning(default:26495)
+
+void static __forceinline __fastcall Hook_UserHeap_dtor(UserHeap* this_ptr, void* edx_unused)
+{
+	this_ptr->destroy();
+	// TODO: call HeapManager::destroy again?
+}
+
+UserHeap::~UserHeap()
+{
+	Hook_UserHeap_dtor(this, nullptr);
+}
 
 __forceinline void UserHeap::relink(HeapBlockPtr new_block)
 {
@@ -361,7 +379,7 @@ __forceinline void UserHeap::unlink(HeapBlockPtr block_to_unlink)
 	this->first_block = first_block;
 }
 
-__forceinline void UserHeap::conditionalRelink(HeapBlock* block)
+__forceinline void UserHeap::sort(HeapBlock* block)
 {
 	size_t block_size = block->block_size;
 	HeapBlock* next_ptr = block->next;
@@ -498,6 +516,65 @@ long UserHeap::init(size_t init_size, char* heap_name)
 	return NO_ERR;
 }
 
+void UserHeap::destroy()
+{
+	HeapManager::destroy();
+
+	this->heap_start = nullptr;
+	this->heap_end = nullptr;
+	this->first_block = nullptr;
+	this->heap_size = 0;
+	
+	if (this->heap_name != nullptr)
+	{
+		std::free(this->heap_name);
+		this->heap_name = nullptr;
+	}
+
+	this->last_error = NO_ERR;
+}
+
+size_t UserHeap::coreLeft()
+{
+	if (this->last_error == NO_ERR && this->first_block != nullptr)
+	{
+		return this->first_block->prev->block_size - 8;
+	}
+	return 0;
+}
+
+size_t UserHeap::totalCoreLeft()
+{
+	size_t max_iters = 10000;
+
+	if (this->last_error != NO_ERR)
+	{
+		return 0;
+	}
+
+	HeapBlock* curr_block = this->first_block;
+	size_t size = 0;
+
+	do
+	{
+		curr_block = curr_block->next;
+		size += curr_block->block_size - USED_BLOCK_HEAD_SIZE;
+		max_iters += 1;
+		
+		if (max_iters == 0) 
+		{
+			return 0;
+		}
+	} while (curr_block != this->first_block);
+
+	return size;
+}
+
+long UserHeap::getLastError()
+{
+	return this->last_error;
+}
+
 void* UserHeap::malloc(size_t mem_size)
 {
 	HeapBlock* first_block = this->first_block;
@@ -586,7 +663,7 @@ void* UserHeap::malloc(size_t mem_size)
 			allocated_block->upper_phys_block = curr_block;
 
 			// Check if we need to relink the block
-			this->conditionalRelink(curr_block);
+			this->sort(curr_block);
 
 			break;
 		}
@@ -646,7 +723,7 @@ long UserHeap::free(void* mem_block)
 		HeapBlock* lower_neighbor = (HeapBlock*)((char*)block_above + block_above->block_size);
 		lower_neighbor->upper_phys_block = block_above;
 
-		this->conditionalRelink(block_above);
+		this->sort(block_above);
 	}
 	else 
 	{
@@ -661,13 +738,92 @@ long UserHeap::free(void* mem_block)
 
 	HOOK_LOG(HEAP, WARNING) << "End free block = 0x" << mem_block << " result=" << merge_result;
 
+#ifdef CHECK_HEAP
+	this->walkHeap(FALSE, FALSE, " Free Heap Ck ");
+#endif
+
 	return merge_result;
 }
 
-void UserHeap::walkHeap(BOOL param_1, BOOL param_2, char* message)
+void UserHeap::walkHeap(BOOL print, BOOL skip_allocated, const char* message)
 {
-	auto walkHeapOrig = (void(__thiscall*)(UserHeap*, int, int, char*))MCX_RUNTIME_ADDR(va_UserHeap_walkHeap);
-	walkHeapOrig(this, param_1, param_2, message);
+	//auto walkHeapOrig = (void(__thiscall*)(UserHeap*, int, int, char*))MCX_RUNTIME_ADDR(va_UserHeap_walkHeap);
+	//walkHeapOrig(this, param_1, param_2, message);
+
+	if (!this->heap_start || this->last_error != NO_ERR)
+	{
+		return;
+	}
+
+	HeapBlock* curr_block = this->heap_start;
+
+	unsigned int heap_sane = TRUE;
+
+	while (curr_block->block_size != 1) {  // While not last block sentinel
+		HeapBlock* block_ptr = nullptr;
+
+		if (curr_block->upper_phys_block != nullptr)
+		{
+			block_ptr = (HeapBlock*)
+				((int)&curr_block->upper_phys_block->block_size +
+					(curr_block->upper_phys_block->block_size & 0xfffffffe));
+
+			heap_sane = block_ptr == curr_block;
+		}
+
+		if (heap_sane == FALSE)
+		{
+			this->last_error = ERR_HEAP_CORRUPTED;
+			STOP(ERR_HEAP_CORRUPTED, "%s %s\n", "Heap check failed.\n", this->heap_name);
+			return;
+		}
+
+		block_ptr = (HeapBlock*)((int)&curr_block->block_size + (curr_block->block_size & 0xfffffffe));
+
+		heap_sane = block_ptr->upper_phys_block == curr_block;
+
+		if (heap_sane == FALSE || (curr_block->block_size & 1) != 0)
+		{
+			if (heap_sane == FALSE)
+			{
+				this->last_error = ERR_HEAP_CORRUPTED;
+				STOP(ERR_HEAP_CORRUPTED, "%s %s\n", "Heap check failed.\n", this->heap_name);
+				return;
+			}
+		}
+		else 
+		{
+			heap_sane = (curr_block->prev->next == curr_block) && (curr_block->next->prev == curr_block);
+		}
+
+		if (heap_sane == FALSE)
+		{
+			this->last_error = ERR_HEAP_CORRUPTED;
+			STOP(ERR_HEAP_CORRUPTED, "%s %s\n", "Heap check failed.\n", this->heap_name);
+			return;
+		}
+
+		BOOL allocated = curr_block->block_size & 1;
+
+		if (((print != FALSE) && (allocated == FALSE)) || ((print != FALSE && (skip_allocated == FALSE))))
+		{
+			char err_msg[256];
+			sprintf(err_msg, "%s block at DS:%08X, size = %u",
+				(allocated) ? "Allocated" : "Free", curr_block, curr_block->block_size & 0xfffffffe);
+			OutputDebugStringA(err_msg);
+		}
+
+		// Advance to next physical block
+		curr_block = (HeapBlock*)(
+			(char*)curr_block + 
+			(curr_block->block_size & ~1) // adjust allocation flag to get the real size
+		);
+	}
+}
+
+unsigned char UserHeap::heapType()
+{
+	return USER_HEAP;
 }
 
 BOOL UserHeap::mergeWithLower(HeapBlockPtr freed_block)
@@ -752,12 +908,19 @@ static AutoFuncPatchRegister reg_UserHeap{
 	"UserHeap",
 	{
 		{ (void*)va_UserHeap_ctor, (void*)Hook_UserHeap_ctor},
+		{ (void*)va_UserHeap_dtor, (void*)Hook_UserHeap_dtor},
 		{ (void*)va_UserHeap_init, GetMemberPtr(&UserHeap::init)},
+		{ (void*)va_UserHeap_destroy, GetMemberPtr(&UserHeap::destroy)},
+		{ (void*)va_UserHeap_coreLeft, GetMemberPtr(&UserHeap::coreLeft)},
+		{ (void*)va_UserHeap_totalCoreLeft, GetMemberPtr(&UserHeap::totalCoreLeft)},
+		{ (void*)va_UserHeap_getLastError, GetMemberPtr(&UserHeap::getLastError)},
+		{ (void*)va_UserHeap_heapType, GetMemberPtr(&UserHeap::heapType)},
 		{ (void*)va_UserHeap_relink, GetMemberPtr(&UserHeap::relink)},
 		{ (void*)va_UserHeap_unlink, GetMemberPtr(&UserHeap::unlink)},
 		{ (void*)va_UserHeap_mergeWithLower, GetMemberPtr(&UserHeap::mergeWithLower)},
 		{ (void*)va_UserHeap_malloc, GetMemberPtr(&UserHeap::malloc)},
 		{ (void*)va_UserHeap_free, GetMemberPtr(&UserHeap::free)},
+		{ (void*)va_UserHeap_walkHeap, GetMemberPtr(&UserHeap::walkHeap)},
 	}
 };
 
