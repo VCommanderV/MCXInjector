@@ -7,6 +7,8 @@
 #define ENABLE_LOG_FASTFILE 0
 #endif
 
+using FileSize = uint32_t;
+
 constexpr auto ERR_BADF_INVALID_ENTRY = 0xBADF0010;   // -0x4520fff0: Invalid entry index or no valid data;
 constexpr auto ERR_BADF_SEEK_OUT_OF_BOUNDS = 0xBADF0008;    // -0x4520fff8: Seek position out of bounds;
 constexpr auto ERR_BADF_INVALID_OFFSET = 0xBADF0009;  // -0x4520fff7: Invalid offset (-1);
@@ -112,7 +114,7 @@ static constexpr uintptr_t va_FastFile_numFastFiles = 0x0080a858;
 # pragma endregion
 
 # pragma region Globals
-static size_t* g_numFastFiles = reinterpret_cast<size_t*>(MCX_RUNTIME_ADDR(va_FastFile_numFastFiles));
+static uint32_t* g_numFastFiles = reinterpret_cast<uint32_t*>(MCX_RUNTIME_ADDR(va_FastFile_numFastFiles));
 static FastFile** g_fastFiles = reinterpret_cast<FastFile**>(MCX_RUNTIME_ADDR(va_FastFile_fastFiles));
 # pragma endregion
 

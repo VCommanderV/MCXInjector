@@ -13,6 +13,9 @@ constexpr auto FILE_ERR_NO_SPACE_FOR_CHILD_LIST = 0xBADF0012;
 
 constexpr auto FILE_ERR_FILE_NOT_FOUND = 2;
 
+using FileSize = uint32_t;
+using FileOffset = uint32_t;
+
 class File;
 
 enum FileMode
@@ -65,10 +68,10 @@ public:
     long fastfile_handle;
 
     // 0x18
-    size_t length;
+    FileSize length;
 
     // 0x1C
-    size_t pos;
+    FileOffset pos;
 
     // 0x20
     uint32_t buf_result;
@@ -77,19 +80,19 @@ public:
     File** children;
 
     // 0x28
-    size_t num_children;
+    uint32_t num_children;
 
     // 0x2C
-    size_t max_children;
+    uint32_t max_children;
 
     // 0x30
     File* parent;
 
     // 0x34
-    size_t parent_offset;
+    FileOffset parent_offset;
 
     // 0x38
-    size_t phys_length;
+    FileSize phys_length;
 
     // 0x3C
     uint32_t field_0x3C;
@@ -118,6 +121,9 @@ public:
 
     // virtual long __thiscall File::create(char *)
     long create(char* filename);
+
+    // public: unsigned long __thiscall File::fileSize(void)
+    FileSize fileSize();
 };
 
 #pragma region Methods VAs

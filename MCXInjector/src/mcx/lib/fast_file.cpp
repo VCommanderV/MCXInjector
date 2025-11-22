@@ -24,7 +24,7 @@ int FastFile::open(char* filename)
 {
     HOOK_DLOG(FASTFILE, INFO) << "Opening file " << filename;
 
-    size_t len = strlen(filename) + 1;
+    FileSize len = strlen(filename) + 1;
 
     this->filename = new char[len];
 

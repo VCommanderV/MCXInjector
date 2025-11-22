@@ -136,7 +136,7 @@ long File::open(char* filename, FileMode mode, long max_children)
             auto ff_handle = ff->openFast(filename);
             this->fastfile_handle = ff_handle;
 
-            auto getSize = (size_t(__thiscall*)(File*))(MCX_RUNTIME_ADDR(va_File_fileSize));
+            auto getSize = (FileSize(__thiscall*)(File*))(MCX_RUNTIME_ADDR(va_File_fileSize));
             auto file_size = getSize(this);
             LOG_FILE_TRAFFIC("FASTF    Length: %010d   File: %s", file_size, filename);
 
@@ -155,7 +155,7 @@ long File::open(char* filename, FileMode mode, long max_children)
         }
         else 
         {
-            auto getSize = (size_t(__thiscall*)(File*))(MCX_RUNTIME_ADDR(va_File_fileSize));
+            auto getSize = (FileSize(__thiscall*)(File*))(MCX_RUNTIME_ADDR(va_File_fileSize));
             auto file_size = getSize(this);
             LOG_FILE_TRAFFIC("CFHandle    Length: %010d    File: %s", file_size, filename);
             this->pos = 0;
@@ -206,6 +206,11 @@ long File::open(char* filename, FileMode mode, long max_children)
 long File::create(char* filename)
 {
     return this->vtable->open2(this, filename, FileMode::CREATE, 0x32);
+}
+
+FileSize File::fileSize()
+{
+    return FileSize();
 }
 
 static AutoFuncPatchRegister reg_File{
