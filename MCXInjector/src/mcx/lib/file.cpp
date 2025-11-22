@@ -24,7 +24,7 @@ MCXI_CTOR_HOOK Hook_File_ctor(File* this_ptr, void* unused_edx)
     this_ptr->num_children = 0;
     this_ptr->in_ram = 0;
     this_ptr->fastfile_buf = 0;
-    this_ptr->fast_file = (FastFile*)0x0;
+    this_ptr->fastfile = (FastFile*)0x0;
     MOV_THIS_TO_EAX(this_ptr);
 }
 
@@ -43,14 +43,7 @@ long File::open(char* filename, FileMode mode, long max_children)
 
     auto filename_len = strnlen_s(filename, MAX_FILENAME_SIZE) + 1;
 
-    if (system_heap == nullptr || system_heap->heap_size == 0)
-    {
-        this->filename = static_cast<char*>(::operator new(filename_len));
-    }
-    else
-    {
-        this->filename = (char*)system_heap->malloc(filename_len);
-    }
+    this->filename = mcx::heap::adaptive_malloc<char>(system_heap, filename_len);
 
     if (this->filename == nullptr)
     {
@@ -115,29 +108,20 @@ long File::open(char* filename, FileMode mode, long max_children)
         {
             FastFile* ff = FastFile::FastFileFind(filename);
             
-            this->fast_file = ff;
+            this->fastfile = ff;
             
             if (ff == nullptr)
             {
-                if (system_heap == nullptr || system_heap->heap_size == 0)
-                {
-                    delete this->filename;
-                }
-                else
-                {
-                    system_heap->free(this->filename);
-                }
-
+                mcx::heap::adaptive_free(system_heap, this->filename);
                 this->filename = nullptr;
                 LOG_FILE_TRAFFIC("FNF    Length: 0000000000  File: %s", filename);
                 return FILE_ERR_FILE_NOT_FOUND;
             }
             
-            auto ff_handle = ff->openFast(filename);
+            long ff_handle = ff->openFast(filename);
             this->fastfile_handle = ff_handle;
 
-            auto getSize = (FileSize(__thiscall*)(File*))(MCX_RUNTIME_ADDR(va_File_fileSize));
-            auto file_size = getSize(this);
+            FileSize file_size = this->fileSize();
             LOG_FILE_TRAFFIC("FASTF    Length: %010d   File: %s", file_size, filename);
 
             this->in_ram = TRUE;
@@ -148,20 +132,17 @@ long File::open(char* filename, FileMode mode, long max_children)
                 ff->readFast(ff_handle, this->fastfile_buf, file_size);
                 ff->closeFast(ff_handle);
                 this->fastfile_handle = -1;
-                this->fast_file = nullptr;
+                this->fastfile = nullptr;
                 this->pos = 0;
                 return NO_ERR;
             }
         }
         else 
         {
-            auto getSize = (FileSize(__thiscall*)(File*))(MCX_RUNTIME_ADDR(va_File_fileSize));
-            auto file_size = getSize(this);
+            FileSize file_size = this->fileSize();
             LOG_FILE_TRAFFIC("CFHandle    Length: %010d    File: %s", file_size, filename);
             this->pos = 0;
-            auto isOpen = (BOOL(__thiscall*)(File*))(MCX_RUNTIME_ADDR(va_File_isOpen));
-            auto is_open = isOpen(this);
-            if (is_open == FALSE)
+            if (this->isOpen() == FALSE)
             {
                 this->length = 0;
             }
@@ -177,14 +158,7 @@ long File::open(char* filename, FileMode mode, long max_children)
             this->num_children = 0;
             this->max_children = max_children;
 
-            if (system_heap == nullptr || system_heap->heap_size == 0)
-            {
-                this->children = (File**)std::malloc(max_children * sizeof(File*));
-            }
-            else
-            {
-                this->children = (File**)system_heap->malloc(max_children * sizeof(File*));
-            }
+            this->children = mcx::heap::adaptive_malloc<File*>(system_heap, max_children * sizeof(File*));
 
             if (this->children == nullptr)
             {
@@ -203,20 +177,74 @@ long File::open(char* filename, FileMode mode, long max_children)
     return NO_ERR;
 }
 
+void File::close()
+{
+    if (this->parent == nullptr)
+    {
+
+    }
+}
+
 long File::create(char* filename)
 {
     return this->vtable->open2(this, filename, FileMode::CREATE, 0x32);
 }
 
+BOOL File::isOpen()
+{
+    if (this->filehandle == INVALID_HANDLE_VALUE && this->fastfile_buf == nullptr)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 FileSize File::fileSize()
 {
-    return FileSize();
+    HOOK_LOGF(BASEFILE, INFO, "File::fileSize(%s)", this->filename);
+
+    // Backed by a FastFile.
+    if (this->fastfile != nullptr && this->length == 0)
+    {
+        FileSize file_size = this->fastfile->sizeFast(this->fastfile_handle);
+        this->length = file_size;
+        HOOK_LOGF(BASEFILE, INFO, "File::fileSize(%s), fastfile => %d", this->filename, file_size);
+        return file_size;
+    }
+    
+    // Parent physical file
+    if (this->parent != nullptr)
+    {
+        this->length = this->phys_length;
+        HOOK_LOGF(BASEFILE, INFO, "File::fileSize(%s), parent => %d", this->filename, this->phys_length);
+        return this->phys_length;
+    }
+
+    BOOL is_open = this->isOpen();
+    FileSize file_size = this->length;
+
+    if (is_open == TRUE)
+    {
+
+        if (file_size == 0 || this->mode > FileMode::CREATE)
+        {
+            this->length = GetFileSize(this->filehandle, 0);
+        }
+
+        file_size = this->length;
+    }
+
+    HOOK_LOGF(BASEFILE, INFO, "File::fileSize(%s) => %d", this->filename, file_size);
+    return file_size;
 }
 
 static AutoFuncPatchRegister reg_File{
     "File",
     {
         { (void*)va_File_ctor, (void*)Hook_File_ctor },
+        { (void*)va_File_isOpen, GetMemberPtr(&File::isOpen)},
+        { (void*)va_File_fileSize, GetMemberPtr(&File::fileSize)},
         { (void*)va_File_open, GetMemberPtr(&File::open)},
     }
 };

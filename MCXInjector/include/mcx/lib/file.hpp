@@ -62,7 +62,7 @@ public:
     HANDLE filehandle;
 
     // 0x10
-    FastFile* fast_file;
+    FastFile* fastfile;
 
     // 0x14
     long fastfile_handle;
@@ -122,8 +122,14 @@ public:
     // virtual long __thiscall File::create(char *)
     long create(char* filename);
 
+    // public: int __thiscall File::isOpen(void)
+    BOOL isOpen();
+
     // public: unsigned long __thiscall File::fileSize(void)
     FileSize fileSize();
+
+    // public: virtual void __thiscall File::close(void)
+    void close();
 };
 
 #pragma region Methods VAs
@@ -202,7 +208,7 @@ ASSERT_FIELD_OFFSET(File, vtable, 0x00);
 ASSERT_FIELD_OFFSET(File, filename, 0x04);
 ASSERT_FIELD_OFFSET(File, mode, 0x08);
 ASSERT_FIELD_OFFSET(File, filehandle, 0x0C);
-ASSERT_FIELD_OFFSET(File, fast_file, 0x10);
+ASSERT_FIELD_OFFSET(File, fastfile, 0x10);
 ASSERT_FIELD_OFFSET(File, fastfile_handle, 0x14);
 ASSERT_FIELD_OFFSET(File, length, 0x18);
 ASSERT_FIELD_OFFSET(File, pos, 0x1C);

@@ -176,6 +176,7 @@ protected:
 	__forceinline void sort(HeapBlock* block);
 };
 
+
 class HeapList {
 public:
 	HeapManager* heaps[MaxHeaps];
@@ -188,6 +189,42 @@ public:
 
 	static HeapList* GetGlobalHeapList();
 };
+
+namespace mcx::heap
+{
+	// Mallocs in the specified heap if initialized or fallbacks to system heap.
+	template<typename T>
+	inline T* adaptive_malloc(UserHeap* heap, size_t bytes)
+	{
+		if (heap == nullptr || heap->heap_size == 0)
+		{
+			return static_cast<T*>(::operator new(bytes));
+		}
+		else
+		{
+			return static_cast<T*>(heap->malloc(bytes));
+		}
+	}
+
+	// Frees the specified memory from the specified heap if initialized or fallbacks to system heap.
+	template<typename T>
+	inline void adaptive_free(UserHeap* heap, T* ptr)
+	{
+		if (ptr == nullptr)
+		{
+			return;
+		}
+
+		if (heap == nullptr || heap->heap_size == 0)
+		{
+			::operator delete(ptr);
+		}
+		else
+		{
+			heap->free(ptr);
+		}
+	}
+}
 
 #pragma region VAs
 static constexpr uintptr_t va_systemHeap = 0x007aaf8c;
