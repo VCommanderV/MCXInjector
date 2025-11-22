@@ -8,6 +8,10 @@
 #define ENABLE_LOG_FITINIFILE 0
 #endif
 
+#ifndef NO_ERR
+#define NO_ERR	0
+#endif
+
 class FitIniFile : public File {
 # pragma region Fields
 public:
@@ -27,15 +31,22 @@ public:
 
     long readIdLong(char* key, long* out_value);
 
-    int open(char* file, int flags, int extra);
+    int open(File* file, unsigned long param_2, long param_3);
 };
 
 
 # pragma region Funcs VAs
 static constexpr uintptr_t va_FitIniFile_vftable = 0x0077c328;
 static constexpr uintptr_t va_FitIniFile_ctor = 0x00649090;
+// virtual long __thiscall FitIniFile::open(File*,unsigned long,long) */
 static constexpr uintptr_t va_FitIniFile_open = 0x00649f10;
+
+// virtual long __thiscall FitIniFile::open(char*,FileMode,long)
+static constexpr uintptr_t va_FitIniFile_open2 = 0x00649ed0;
+
 static constexpr uintptr_t va_FitIniFile_readIdLong = 0x0064a190;
+
+static constexpr uintptr_t va_FitIniFile_afterOpen = 0x00649250;
 # pragma endregion
 
 #pragma region Layout asserts

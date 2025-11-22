@@ -11,7 +11,7 @@ constexpr auto ERR_BADF_INVALID_ENTRY = 0xBADF0010;   // -0x4520fff0: Invalid en
 constexpr auto ERR_BADF_SEEK_OUT_OF_BOUNDS = 0xBADF0008;    // -0x4520fff8: Seek position out of bounds;
 constexpr auto ERR_BADF_INVALID_OFFSET = 0xBADF0009;  // -0x4520fff7: Invalid offset (-1);
 
-constexpr auto FF_ENTRY_NAME_MAX_LEN = 250;
+constexpr auto MAX_FILENAME_SIZE = 250;
 
 #pragma pack(push, 1)
 struct FastFileEntryHeader
@@ -19,7 +19,7 @@ struct FastFileEntryHeader
     uint32_t size;                    // 0x00
     uint32_t compressed_size;         // 0x04
     uint32_t uncompressed_size;       // 0x08
-    char name[FF_ENTRY_NAME_MAX_LEN]; // 0x0C: 250 bytes for name
+    char name[MAX_FILENAME_SIZE]; // 0x0C: 250 bytes for name
 };
 #pragma pack(pop)
 
@@ -83,7 +83,10 @@ public:
 
     // __thiscall FastFile::~FastFile(void)
     ~FastFile();
+    
+    static FastFile* FastFileFind(char* filename);
 };
+
 
 #pragma region Methods VAs
 static constexpr uintptr_t va_FastFile_operator_new = 0x00644d10;
@@ -103,6 +106,14 @@ static constexpr uintptr_t va_FastFile_readFast = 0x006450f0;
 static constexpr uintptr_t va_FastFile_tellFast = 0x00645260;
 static constexpr uintptr_t va_FastFile_sizeFast = 0x00645290;
 static constexpr uintptr_t va_FastFile_lzSizeFast = 0x006452c0;
+
+static constexpr uintptr_t va_FastFile_fastFiles = 0x0080a854;
+static constexpr uintptr_t va_FastFile_numFastFiles = 0x0080a858;
+# pragma endregion
+
+# pragma region Globals
+static size_t* g_numFastFiles = reinterpret_cast<size_t*>(MCX_RUNTIME_ADDR(va_FastFile_numFastFiles));
+static FastFile** g_fastFiles = reinterpret_cast<FastFile**>(MCX_RUNTIME_ADDR(va_FastFile_fastFiles));
 # pragma endregion
 
 #pragma region Layout asserts

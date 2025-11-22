@@ -38,6 +38,7 @@ set(LOG_SUBSYSTEMS
     BASEFILE
     FASTFILE
     FITINIFILE
+    FILETRAFF
 )
 
 foreach(subsys IN LISTS LOG_SUBSYSTEMS)
@@ -47,6 +48,12 @@ foreach(subsys IN LISTS LOG_SUBSYSTEMS)
         target_compile_definitions(MCXInjector PRIVATE ENABLE_LOG_${subsys}=1)
     endif()
 endforeach()
+
+option(MCXI_WAIT_FOR_DEBUGGER "Wait for debugger to be attached" OFF)
+
+if(MCXI_WAIT_FOR_DEBUGGER)
+    target_compile_definitions(MCXInjector PRIVATE WAIT_FOR_DEBUGGER)
+endif()
 
 set_target_properties(MCXInjector PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

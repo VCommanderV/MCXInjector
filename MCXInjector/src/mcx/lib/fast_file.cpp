@@ -345,6 +345,32 @@ FastFile::~FastFile()
     this->close();
 }
 
+FastFile* FastFile::FastFileFind(char* filename)
+{
+    FastFile*** p_fastFiles = reinterpret_cast<FastFile***>(MCX_RUNTIME_ADDR(va_FastFile_fastFiles));
+    FastFile** fastFiles = *p_fastFiles;
+    long numFastFiles = *g_numFastFiles;
+    HOOK_DLOGF(FASTFILE, INFO, "FastFile::FastFileFind(%s) numFastFiles=%d ff=%p", filename, numFastFiles, fastFiles);
+
+    if (fastFiles == nullptr || numFastFiles <= 0)
+    {
+        return nullptr;
+    }
+
+    for (int i = 0; i < numFastFiles; i++)
+    {
+        FastFile* ff = fastFiles[i];
+        long result = ff->openFast(filename);
+
+        if (result != -1)
+        {
+            return ff;
+        }
+    }
+
+    return nullptr;
+}
+
 static AutoFuncPatchRegister reg_FastFile{
     "FastFile",
     {

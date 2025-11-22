@@ -1,60 +1,95 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include "mcx/lib/fast_file.hpp"
 #include "mcx_inject.hpp"
 
 #ifndef ENABLE_LOG_BASEFILE
 #define ENABLE_LOG_BASEFILE 0
 #endif
 
+constexpr auto FILE_ERR_NO_SPACE_FOR_FILENAME = 0xBADF000D;
+constexpr auto FILE_ERR_NO_SPACE_FOR_CHILD_LIST = 0xBADF0012;
+
+constexpr auto FILE_ERR_FILE_NOT_FOUND = 2;
+
+class File;
+
+enum FileMode
+{
+    NOMODE = 0,
+    READ = 1,
+    CREATE = 2,
+    WRITE = 3,
+    RDWRITE = 4
+};
+
+enum FileClass
+{
+    BASEFILEE = 0,
+    INIFILE = 1,
+    PACKETFILE = 2,
+    CSVFILE = 3
+};
+
+
+struct File_vtable
+{
+    long(__thiscall* open)(File*, File*, unsigned long, long);
+    long(__thiscall* open2)(File*, char*, FileMode, long);
+    long(__thiscall* create)(File*, char*);
+    void(__thiscall* close)(File*);
+    FileClass(__thiscall* getFileClass)(File*);
+};
+
 // 76 bytes, 4 bytes alignment.
 class File {
 # pragma region Fields
 public:
     // 0x00
-    void* vtable;
+    File_vtable* vtable;
 
     // 0x04
-    char* filename_0x04;
+    char* filename;
 
     // 0x08
-    int32_t open_flags_0x08;
+    FileMode mode;
 
     // 0x0C
-    HANDLE filehandle_0xc;
+    HANDLE filehandle;
 
     // 0x10
-    void* p_fast_file_ptr_0x10;
+    FastFile* fast_file;
 
     // 0x14
-    int32_t fastfile_handle;
+    long fastfile_handle;
 
     // 0x18
-    uint32_t file_size_0x18;
+    size_t length;
 
     // 0x1C
-    uint32_t field_0x1c;
+    size_t pos;
 
     // 0x20
-    uint32_t field_0x20;
+    uint32_t buf_result;
 
     // 0x24
-    uint32_t* children_0x24;
+    File** children;
 
     // 0x28
-    int32_t children_count;
+    size_t num_children;
 
     // 0x2C
-    int32_t field_0x2c;
+    size_t max_children;
 
     // 0x30
-    uint32_t field_0x30;
+    File* parent;
 
     // 0x34
-    uint32_t field_0x34;
+    size_t parent_offset;
 
     // 0x38
-    uint32_t field_0x38;
+    size_t phys_length;
 
     // 0x3C
     uint32_t field_0x3C;
@@ -63,18 +98,26 @@ public:
     uint32_t field_0x40;
 
     // 0x44
-    uint32_t flags_0x44;
+    BOOL in_ram;
 
     // 0x48
-    void* fastfile_buffer_0x48;
+    void* fastfile_buf;
 #pragma endregion
-
+public:
+    static BOOL logFileTraffic;
+    static DWORD lastError;
 public:
     static File* fromPtr(void* p) noexcept {
         return reinterpret_cast<File*>(p);
     }
 
     File();
+
+    // virtual long __thiscall File::open(char *,enum FileMode,long)
+    long open(char* filename, FileMode mode, long param_2);
+
+    // virtual long __thiscall File::create(char *)
+    long create(char* filename);
 };
 
 #pragma region Methods VAs
@@ -86,7 +129,9 @@ static constexpr uintptr_t va_operator_delete = 0x006453D0;
 static constexpr uintptr_t va_File_getFileClass = 0x00645440;
 static constexpr uintptr_t va_File_dtor = 0x00645450;
 static constexpr uintptr_t va_File_eof = 0x00645460;
+// virtual long __thiscall File::open(char *,enum FileMode,long)
 static constexpr uintptr_t va_File_open = 0x00645480;
+// virtual long __thiscall File::open(class File *,unsigned long,long)
 static constexpr uintptr_t va_File_open_alt = 0x00645780;
 static constexpr uintptr_t va_File_create = 0x00645940;
 static constexpr uintptr_t va_File_addChild = 0x00645960;
@@ -117,28 +162,53 @@ static constexpr uintptr_t va_File_getLength = 0x00646860;
 static constexpr uintptr_t va_File_fileSize = 0x006468C0;
 static constexpr uintptr_t va_File_getNumLines = 0x006468D0;
 static constexpr uintptr_t va_File_skip = 0x00646940;
+
+static constexpr uintptr_t va_File_logFileTraffic = 0x007d8fa0;
+static constexpr uintptr_t va_File_fileTrafficLog = 0x007d8fa4;
+static constexpr uintptr_t va_File_createTrafficLog = 0x006452f0;
+#pragma endregion
+
+#pragma region Layout asserts
+static BOOL* g_logFileTraffic = reinterpret_cast<BOOL*>(MCX_RUNTIME_ADDR(va_File_logFileTraffic));
+static File** g_fileTrafficLog_ptr = reinterpret_cast<File**>(MCX_RUNTIME_ADDR(va_File_fileTrafficLog));
+static auto createTrafficLog = reinterpret_cast<void(__cdecl*)(void)>(MCX_RUNTIME_ADDR(va_File_createTrafficLog));
+
+#define LOG_FILE_TRAFFIC(fmt, ...) \
+if (*g_logFileTraffic != FALSE) \
+{ \
+    if (*g_fileTrafficLog_ptr == nullptr) \
+    { \
+        createTrafficLog(); \
+    } \
+    char msg[300]; \
+    sprintf(msg, fmt, __VA_ARGS__); \
+    HOOK_LOGF(FILETRAFF, INFO, fmt, __VA_ARGS__); \
+    auto writeLine = (long(__thiscall*)(File*, char*))(MCX_RUNTIME_ADDR(va_File_writeLine)); \
+    writeLine(*g_fileTrafficLog_ptr, msg); \
+}
+
 #pragma endregion
 
 #pragma region Layout asserts
 ASSERT_SIZE(File, 0x4C);
 ASSERT_ALIGN(File, 0x4);
 ASSERT_FIELD_OFFSET(File, vtable, 0x00);
-ASSERT_FIELD_OFFSET(File, filename_0x04, 0x04);
-ASSERT_FIELD_OFFSET(File, open_flags_0x08, 0x08);
-ASSERT_FIELD_OFFSET(File, filehandle_0xc, 0x0C);
-ASSERT_FIELD_OFFSET(File, p_fast_file_ptr_0x10, 0x10);
+ASSERT_FIELD_OFFSET(File, filename, 0x04);
+ASSERT_FIELD_OFFSET(File, mode, 0x08);
+ASSERT_FIELD_OFFSET(File, filehandle, 0x0C);
+ASSERT_FIELD_OFFSET(File, fast_file, 0x10);
 ASSERT_FIELD_OFFSET(File, fastfile_handle, 0x14);
-ASSERT_FIELD_OFFSET(File, file_size_0x18, 0x18);
-ASSERT_FIELD_OFFSET(File, field_0x1c, 0x1C);
-ASSERT_FIELD_OFFSET(File, field_0x20, 0x20);
-ASSERT_FIELD_OFFSET(File, children_0x24, 0x24);
-ASSERT_FIELD_OFFSET(File, children_count, 0x28);
-ASSERT_FIELD_OFFSET(File, field_0x2c, 0x2C);
-ASSERT_FIELD_OFFSET(File, field_0x30, 0x30);
-ASSERT_FIELD_OFFSET(File, field_0x34, 0x34);
-ASSERT_FIELD_OFFSET(File, field_0x38, 0x38);
+ASSERT_FIELD_OFFSET(File, length, 0x18);
+ASSERT_FIELD_OFFSET(File, pos, 0x1C);
+ASSERT_FIELD_OFFSET(File, buf_result, 0x20);
+ASSERT_FIELD_OFFSET(File, children, 0x24);
+ASSERT_FIELD_OFFSET(File, num_children, 0x28);
+ASSERT_FIELD_OFFSET(File, max_children, 0x2C);
+ASSERT_FIELD_OFFSET(File, parent, 0x30);
+ASSERT_FIELD_OFFSET(File, parent_offset, 0x34);
+ASSERT_FIELD_OFFSET(File, phys_length, 0x38);
 ASSERT_FIELD_OFFSET(File, field_0x3C, 0x3C);
 ASSERT_FIELD_OFFSET(File, field_0x40, 0x40);
-ASSERT_FIELD_OFFSET(File, flags_0x44, 0x44);
-ASSERT_FIELD_OFFSET(File, fastfile_buffer_0x48, 0x48);
+ASSERT_FIELD_OFFSET(File, in_ram, 0x44);
+ASSERT_FIELD_OFFSET(File, fastfile_buf, 0x48);
 #pragma endregion

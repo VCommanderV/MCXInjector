@@ -74,6 +74,12 @@ static BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
         // start attach in a new thread
         HANDLE h = CreateThread(NULL, 0, ThreadAttach, NULL, 0, NULL);
         if (h) CloseHandle(h);
+
+#ifdef WAIT_FOR_DEBUGGER
+        LOG_DEBUG << "DEBUGGER: " << IsDebuggerPresent();
+        while (IsDebuggerPresent() == FALSE) Sleep(10);
+        //__debugbreak();
+#endif
     }
     else if (reason == DLL_PROCESS_DETACH) {
         PatchRegistry::instance()->RestoreAll();

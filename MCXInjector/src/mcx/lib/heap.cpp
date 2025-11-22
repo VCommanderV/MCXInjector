@@ -649,7 +649,7 @@ void* UserHeap::malloc(size_t mem_size)
 			// Find the block AFTER the current block and update its upper physical block
 			// because it is not us no more.
 
-			// HOOK_LOGF(HEAP, INFO, "Malloc, split block=%p allocd=%d avail=%d", curr_block, mem_size_align, curr_block_avail_size);
+			//HOOK_LOGF(HEAP, INFO, "Malloc, split block=%p allocd=%d avail=%d", curr_block, mem_size_align, curr_block_avail_size);
 
 			HeapBlock* lower_neighbor = (HeapBlock*)((char*)curr_block + curr_block->block_size);
 			lower_neighbor->upper_phys_block = (HeapBlock*)((char*)curr_block + curr_block_avail_size);

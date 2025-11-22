@@ -237,6 +237,10 @@ static constexpr uintptr_t va_HeapList_addHeap = 0x006488f0;
 static constexpr uintptr_t va_HeapList_removeHeap = 0x00648940;
 #pragma endregion
 
+#pragma region Globals
+static UserHeap** g_systemHeap_ptr = reinterpret_cast<UserHeap**>(MCX_RUNTIME_ADDR(va_systemHeap));
+#pragma endregion
+
 #pragma region Layout asserts
 ASSERT_SIZE(HeapManager, 0x1c);
 ASSERT_ALIGN(HeapManager, 0x4);

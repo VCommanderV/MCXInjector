@@ -10,7 +10,7 @@ MCXI_CTOR_HOOK Hook_FitIniFile_ctor(FitIniFile* this_ptr, void* edx_unused)
     File* file = reinterpret_cast<File*>(this_ptr);
     new (file) File();
 
-    file->vtable = (void*)MCX_RUNTIME_ADDR(va_FitIniFile_vftable);
+    file->vtable = (File_vtable*)MCX_RUNTIME_ADDR(va_FitIniFile_vftable);
     FitIniFile* fit_ini_file = reinterpret_cast<FitIniFile*>(file);
     fit_ini_file->field_0x4c = 0;
     fit_ini_file->field_0x50 = 0;
@@ -28,17 +28,34 @@ FitIniFile::FitIniFile()
 }
 #pragma warning(default:26495)
 
-// __thiscall FitIniFile::open(File*, int flags, int extra)
-int FitIniFile::open(char* file, int flags, int extra)
+// __thiscall FitIniFile::open(File*, int mode, int extra)
+int FitIniFile::open(File* file, unsigned long file_size, long num_children)
 {
-    auto orig = GetTrampoline<int(__thiscall*)(FitIniFile*, char*, int, int)>(va_FitIniFile_open);
-    auto ret = orig(this, file, flags, extra);
-
-    HOOK_DLOGF(FITINIFILE, INFO, "FitIniFile::open(%p,%d) => this=%p. (%s)",
-        (void*)file,
-        flags,
+    HOOK_DLOGF(FITINIFILE, INFO, "START FitIniFile::open(%p,%d,%d) => this=%p. (%s)",
+        file,
+        file_size,
+        num_children,
         this,
-        this->filename_0x04
+        file->filename
+    );
+
+    /*auto orig = GetTrampoline<int(__thiscall*)(FitIniFile*, char*, int, int)>(va_FitIniFile_open);
+    auto ret = orig(this, file, flags, extra);*/
+    File* f = reinterpret_cast<File*>(this);
+    auto vtable = (File_vtable*)MCX_RUNTIME_ADDR(va_File_vftable);
+    long ret = vtable->open(f, file, file_size, -1);
+
+    if (ret == NO_ERR)
+    {
+        auto afterOpen = reinterpret_cast<long(__thiscall*)(FitIniFile*)>((void*)MCX_RUNTIME_ADDR(va_FitIniFile_afterOpen));
+        ret = afterOpen(this);
+    }
+
+    HOOK_DLOGF(FITINIFILE, INFO, "END FitIniFile::open(%p,%d,%d) => %d",
+        file,
+        file_size,
+        num_children,
+        ret
     );
 
     return ret;
@@ -57,7 +74,7 @@ static AutoFuncPatchRegister reg_FitIniFile{
     "FitIniFile",
     {
         { (void*)va_FitIniFile_ctor, (void*)Hook_FitIniFile_ctor },
-        { (void*)va_FitIniFile_open, GetMemberPtr(&FitIniFile::open)},
-        { (void*)va_FitIniFile_readIdLong, GetMemberPtr(&FitIniFile::readIdLong)}
+        //{ (void*)va_FitIniFile_open, GetMemberPtr(&FitIniFile::open)},
+        //{ (void*)va_FitIniFile_readIdLong, GetMemberPtr(&FitIniFile::readIdLong)}
     }
 };
