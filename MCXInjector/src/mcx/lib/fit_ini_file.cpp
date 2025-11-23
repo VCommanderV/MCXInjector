@@ -36,7 +36,7 @@ int FitIniFile::open(File* file, unsigned long file_size, long num_children)
         file_size,
         num_children,
         this,
-        file->filename
+        file->file_name
     );
 
     /*auto orig = GetTrampoline<int(__thiscall*)(FitIniFile*, char*, int, int)>(va_FitIniFile_open);
@@ -59,6 +59,11 @@ int FitIniFile::open(File* file, unsigned long file_size, long num_children)
     );
 
     return ret;
+}
+
+long FitIniFile::findNextBlockStart(char* line, unsigned long line_length)
+{
+    return 0;
 }
 
 long FitIniFile::readIdLong(char* key, long* out_value)

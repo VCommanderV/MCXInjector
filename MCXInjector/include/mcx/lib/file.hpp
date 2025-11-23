@@ -10,6 +10,10 @@
 
 constexpr auto FILE_ERR_NO_SPACE_FOR_FILENAME = 0xBADF000D;
 constexpr auto FILE_ERR_NO_SPACE_FOR_CHILD_LIST = 0xBADF0012;
+constexpr auto FILE_ERR_NO_SPACE_LEFT_FOR_CHILD = 0xBADF000F;
+constexpr auto FILE_ERR_BAD_PARENT = 0xBADF000E;
+constexpr auto FILE_ERR_PARENT_READONLY = 0xBADF0011;
+constexpr auto FILE_ERR_WRITE_FAIL = 0xBADF000A;
 
 constexpr auto FILE_ERR_FILE_NOT_FOUND = 2;
 
@@ -53,13 +57,13 @@ public:
     File_vtable* vtable;
 
     // 0x04
-    char* filename;
+    char* file_name;
 
     // 0x08
-    FileMode mode;
+    FileMode file_mode;
 
     // 0x0C
-    HANDLE filehandle;
+    HANDLE file_handle;
 
     // 0x10
     FastFile* fastfile;
@@ -114,13 +118,25 @@ public:
         return reinterpret_cast<File*>(p);
     }
 
+    static void* operator new(size_t size);
+
+    static void* operator new(size_t size, void* ptr);
+
+    static void operator delete(void* ptr);
+
     File();
 
-    // virtual long __thiscall File::open(char *,enum FileMode,long)
-    long open(char* filename, FileMode mode, long param_2);
-
-    // virtual long __thiscall File::create(char *)
+    // public: virtual long __thiscall File::create(char *)
     long create(char* filename);
+
+    // public: virtual long __thiscall File::open(char *,enum FileMode,long)
+    long open(char* filename, FileMode mode, long max_children);
+
+    // public: virtual long __thiscall File::open(class File *,unsigned long,long)
+    long open2(File* file, FileSize file_size, long num_children);
+
+    // public: virtual void __thiscall File::close(void)
+    void close();
 
     // public: int __thiscall File::isOpen(void)
     BOOL isOpen();
@@ -128,8 +144,82 @@ public:
     // public: unsigned long __thiscall File::fileSize(void)
     FileSize fileSize();
 
-    // public: virtual void __thiscall File::close(void)
-    void close();
+    // public: long __thiscall File::addChild(class File *)
+    long addChild(File*);
+
+    // public: void __thiscall File::removeChild(class File *)
+    void removeChild(File*);
+
+    // public: int __thiscall File::eof(void
+    BOOL eof();
+
+    // public: virtual enum FileClass __thiscall File::getFileClass(void) */
+    FileClass getFileClass();
+
+    // public: char * __thiscall File::getFilename(void)
+    char* getFilename();
+
+    // public: unsigned long __thiscall File::getLength(void
+    FileSize getLength();
+
+    // public: long __thiscall File::seek(long,long)
+    long seek(long offset, long seek_mode);
+
+    // public: void __thiscall File::skip(long
+    void skip(long bytes);
+
+    // public: long __thiscall File::read(unsigned long,unsigned char *,long)
+    // INLINED
+    long read(FileOffset position, unsigned char* dst_buf, long bytes);
+
+    // public: long __thiscall File::read(unsigned char *,long)
+    long read2(unsigned char* dst_buf, long bytes);
+
+    // public: unsigned char __thiscall File::readByte(void)
+    BYTE readByte();
+
+    // public: unsigned long __thiscall File::getNumLines(void)
+    uint32_t getNumLines();
+
+    // public: long __thiscall File::readLine(unsigned char *,long)
+    long readLine(unsigned char* dst_buf, long buf_size);
+
+    // public: short __thiscall File::readWord(void)
+    short readWord(void);
+
+    // public: short __thiscall File::readShort(void)
+    short readShort(void);
+
+    // public: long __thiscall File::readString(unsigned char *)
+    long readString(unsigned char* dst_buf);
+
+    // public: long __thiscall File::write(unsigned long,unsigned char *,long)
+    long write(FileOffset position, unsigned char* src_buf, long bytes);
+
+    // public: long __thiscall File::write(unsigned char *,long)
+    long write2(unsigned char* src_buf, long bytes);
+
+    // public: long __thiscall File::writeByte(unsigned char)
+    long writeByte(BYTE b);
+
+    // public: long __thiscall File::writeFloat(float)
+    long writeFloat(float f);
+
+    // public: long __thiscall File::writeLong(long)
+    long writeLong(long l);
+
+    // public: long __thiscall File::writeShort(short)
+    long writeShort(short short_);
+
+    // public: long __thiscall File::writeWord(short)
+    long writeWord(short word_);
+
+    // public: long __thiscall File::writeString(char *)
+    long writeString(char* string);
+
+protected:
+    template<typename T>
+    inline long writeT(T t);
 };
 
 #pragma region Methods VAs
@@ -144,7 +234,7 @@ static constexpr uintptr_t va_File_eof = 0x00645460;
 // virtual long __thiscall File::open(char *,enum FileMode,long)
 static constexpr uintptr_t va_File_open = 0x00645480;
 // virtual long __thiscall File::open(class File *,unsigned long,long)
-static constexpr uintptr_t va_File_open_alt = 0x00645780;
+static constexpr uintptr_t va_File_open2 = 0x00645780;
 static constexpr uintptr_t va_File_create = 0x00645940;
 static constexpr uintptr_t va_File_addChild = 0x00645960;
 static constexpr uintptr_t va_File_removeChild = 0x006459A0;
@@ -156,10 +246,11 @@ static constexpr uintptr_t va_File_readByte = 0x00645DA0;
 static constexpr uintptr_t va_File_readWord = 0x00645E50;
 static constexpr uintptr_t va_File_readShort = 0x00645F00;
 static constexpr uintptr_t va_File_readString = 0x00645FC0;
-static constexpr uintptr_t va_File_read_alt = 0x00646010;
+static constexpr uintptr_t va_File_read2 = 0x00646010;
 static constexpr uintptr_t va_File_readLine = 0x006460E0;
 static constexpr uintptr_t va_File_readLineEx = 0x00646290;
 static constexpr uintptr_t va_File_write = 0x00646410;
+static constexpr uintptr_t va_File_write2 = 0x006467A0;
 static constexpr uintptr_t va_File_writeByte = 0x006464A0;
 static constexpr uintptr_t va_File_writeWord = 0x00646520;
 static constexpr uintptr_t va_File_writeShort = 0x006465A0;
@@ -167,7 +258,6 @@ static constexpr uintptr_t va_File_writeLong = 0x006465B0;
 static constexpr uintptr_t va_File_writeFloat = 0x00646630;
 static constexpr uintptr_t va_File_writeString = 0x006466B0;
 static constexpr uintptr_t va_File_writeLine = 0x00646720;
-static constexpr uintptr_t va_File_write_alt = 0x006467A0;
 static constexpr uintptr_t va_File_isOpen = 0x00646830;
 static constexpr uintptr_t va_File_getFilename = 0x00646850;
 static constexpr uintptr_t va_File_getLength = 0x00646860;
@@ -178,9 +268,11 @@ static constexpr uintptr_t va_File_skip = 0x00646940;
 static constexpr uintptr_t va_File_logFileTraffic = 0x007d8fa0;
 static constexpr uintptr_t va_File_fileTrafficLog = 0x007d8fa4;
 static constexpr uintptr_t va_File_createTrafficLog = 0x006452f0;
+static constexpr uintptr_t va_File_newPosition = 0x007d8fa8;
 #pragma endregion
 
-#pragma region Layout asserts
+#pragma region Globals
+static long* g_newPosition = reinterpret_cast<long*>(MCX_RUNTIME_ADDR(va_File_newPosition));
 static BOOL* g_logFileTraffic = reinterpret_cast<BOOL*>(MCX_RUNTIME_ADDR(va_File_logFileTraffic));
 static File** g_fileTrafficLog_ptr = reinterpret_cast<File**>(MCX_RUNTIME_ADDR(va_File_fileTrafficLog));
 static auto createTrafficLog = reinterpret_cast<void(__cdecl*)(void)>(MCX_RUNTIME_ADDR(va_File_createTrafficLog));
@@ -194,7 +286,7 @@ if (*g_logFileTraffic != FALSE) \
     } \
     char msg[300]; \
     sprintf(msg, fmt, __VA_ARGS__); \
-    HOOK_LOGF(FILETRAFF, INFO, fmt, __VA_ARGS__); \
+    HOOK_DLOGF(FILETRAFF, INFO, fmt, __VA_ARGS__); \
     auto writeLine = (long(__thiscall*)(File*, char*))(MCX_RUNTIME_ADDR(va_File_writeLine)); \
     writeLine(*g_fileTrafficLog_ptr, msg); \
 }
@@ -205,9 +297,9 @@ if (*g_logFileTraffic != FALSE) \
 ASSERT_SIZE(File, 0x4C);
 ASSERT_ALIGN(File, 0x4);
 ASSERT_FIELD_OFFSET(File, vtable, 0x00);
-ASSERT_FIELD_OFFSET(File, filename, 0x04);
-ASSERT_FIELD_OFFSET(File, mode, 0x08);
-ASSERT_FIELD_OFFSET(File, filehandle, 0x0C);
+ASSERT_FIELD_OFFSET(File, file_name, 0x04);
+ASSERT_FIELD_OFFSET(File, file_mode, 0x08);
+ASSERT_FIELD_OFFSET(File, file_handle, 0x0C);
 ASSERT_FIELD_OFFSET(File, fastfile, 0x10);
 ASSERT_FIELD_OFFSET(File, fastfile_handle, 0x14);
 ASSERT_FIELD_OFFSET(File, length, 0x18);

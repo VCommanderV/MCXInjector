@@ -487,9 +487,9 @@ long UserHeap::init(size_t init_size, char* heap_name)
 	this->heap_start = free_blk_start;
 	this->heap_end = free_blk_end;
 
-	/*HOOK_LOGF(HEAP, INFO, "heap_end 0x%p", heap_start);
-	HOOK_LOGF(HEAP, INFO, "free_block_start 0x%p", free_blk_start);
-	HOOK_LOGF(HEAP, INFO, "free_block_end 0x%p", free_blk_end);*/
+	/*HOOK_DLOGF(HEAP, INFO, "heap_end 0x%p", heap_start);
+	HOOK_DLOGF(HEAP, INFO, "free_block_start 0x%p", free_blk_start);
+	HOOK_DLOGF(HEAP, INFO, "free_block_end 0x%p", free_blk_end);*/
 
 	// actual block size, minus header and footer
 	free_blk_start->block_size = (uintptr_t)free_blk_end - (uintptr_t)free_blk_start;
@@ -625,7 +625,7 @@ void* UserHeap::malloc(size_t mem_size)
 			// Case 1 => allocate full block
 			if (curr_block_avail_size < sizeof(HeapBlock))
 			{
-				// HOOK_LOGF(HEAP, INFO, "Malloc, alloc full block=%p allocd=%d avail=%d", curr_block, mem_size_align, curr_block_avail_size);
+				// HOOK_DLOGF(HEAP, INFO, "Malloc, alloc full block=%p allocd=%d avail=%d", curr_block, mem_size_align, curr_block_avail_size);
 				
 				// Mark entire block as allocated
 				curr_block->block_size |= 1;
@@ -649,7 +649,7 @@ void* UserHeap::malloc(size_t mem_size)
 			// Find the block AFTER the current block and update its upper physical block
 			// because it is not us no more.
 
-			//HOOK_LOGF(HEAP, INFO, "Malloc, split block=%p allocd=%d avail=%d", curr_block, mem_size_align, curr_block_avail_size);
+			//HOOK_DLOGF(HEAP, INFO, "Malloc, split block=%p allocd=%d avail=%d", curr_block, mem_size_align, curr_block_avail_size);
 
 			HeapBlock* lower_neighbor = (HeapBlock*)((char*)curr_block + curr_block->block_size);
 			lower_neighbor->upper_phys_block = (HeapBlock*)((char*)curr_block + curr_block_avail_size);

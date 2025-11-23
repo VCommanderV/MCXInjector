@@ -32,6 +32,9 @@ public:
     long readIdLong(char* key, long* out_value);
 
     int open(File* file, unsigned long param_2, long param_3);
+
+    // protected: long __thiscall FitIniFile::findNextBlockStart(char *,unsigned long)
+    long findNextBlockStart(char* line, unsigned long line_length);
 };
 
 
