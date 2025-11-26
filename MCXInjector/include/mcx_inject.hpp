@@ -37,7 +37,7 @@
     static_assert(offsetof(type, field) == (offset), \
                   #type "." #field " offset mismatch: expected " #offset)
 
-#define STOP(msg, fmt, ...) LOG(FATAL) << absl::StrFormat(fmt, __VA_ARGS__)
+#define STOP(fmt, ...) LOG(FATAL) << absl::StrFormat(fmt, __VA_ARGS__)
 
 #define ASSERT_SIZE(type, size) \
     static_assert(sizeof(type) == size, #type " size mismatch: expected " #size)

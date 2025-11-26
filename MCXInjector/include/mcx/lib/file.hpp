@@ -286,7 +286,6 @@ if (*g_logFileTraffic != FALSE) \
     } \
     char msg[300]; \
     sprintf(msg, fmt, __VA_ARGS__); \
-    HOOK_DLOGF(FILETRAFF, INFO, fmt, __VA_ARGS__); \
     auto writeLine = (long(__thiscall*)(File*, char*))(MCX_RUNTIME_ADDR(va_File_writeLine)); \
     writeLine(*g_fileTrafficLog_ptr, msg); \
 }

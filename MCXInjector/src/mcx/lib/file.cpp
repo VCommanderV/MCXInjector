@@ -823,7 +823,7 @@ long File::readLine(unsigned char* dst_buf, long buf_size)
             0
         );
 
-        HOOK_DLOGF(BASEFILE, INFO, "File::readLine(%s, %s, %d) [FF]", this->file_name, dst_buf, buf_size);
+        HOOK_DLOGF(BASEFILE, INFO, "File::readLine(%s, %s, %d) [FF]", this->file_name, (char*)dst_buf, buf_size);
 
         return line_length + 1;
     }
@@ -874,7 +874,7 @@ long File::readLine(unsigned char* dst_buf, long buf_size)
 
     this->seek(this->pos, SEEK_SET);
 
-    HOOK_DLOGF(BASEFILE, INFO, "File::readLine(%s, %s, %d) [FH]", this->file_name, dst_buf, buf_size);
+    HOOK_DLOGF(BASEFILE, INFO, "File::readLine(%s, %s, %d) [FH]", this->file_name, (char*)dst_buf, buf_size);
 
     return line_length + 1;
 }
@@ -1012,8 +1012,7 @@ long File::writeWord(short word_)
 
 BOOL File::eof()
 {
-    FileSize length = this->getLength();
-    return length <= this->pos;
+    return this->pos >= this->getLength();
 }
 
 static AutoFuncPatchRegister reg_File{
@@ -1023,6 +1022,7 @@ static AutoFuncPatchRegister reg_File{
         { (void*)va_FastFile_operator_new, (void*)Hook_File_new},
         { (void*)va_FastFile_operator_delete, (void*)Hook_File_delete},
         { (void*)va_File_isOpen, GetMemberPtr(&File::isOpen)},
+        { (void*)va_File_eof, GetMemberPtr(&File::eof)},
         { (void*)va_File_fileSize, GetMemberPtr(&File::fileSize)},
         { (void*)va_File_open, GetMemberPtr(&File::open)},
         { (void*)va_File_open2, GetMemberPtr(&File::open2)},
