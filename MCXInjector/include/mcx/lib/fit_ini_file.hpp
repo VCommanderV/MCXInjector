@@ -18,10 +18,17 @@ static constexpr auto INI_ERR_BLOCKS_MALLOC_FAILED = 0xFADA0005;
 static constexpr auto INI_ERR_END_OF_BLOCKS = 0xFADA0006;
 static constexpr auto INI_ERR_BLOCKS_OVERRUN = 0xFADA0007;
 static constexpr auto INI_ERR_UNEXPECTED_BLOCKS_NUM = 0xFADA0008;
-static constexpr auto INI_ERR_MALFORMED_BLOCK= 0xFADA000A;
+static constexpr auto INI_ERR_VAR_NOT_FOUND = 0xFADA0009;
+static constexpr auto INI_ERR_MALFORMED_BLOCK = 0xFADA000A;
+static constexpr auto INI_ERR_ARRAY_NOT_ENOUGH_ITEMS = 0xFADA000B;
+static constexpr auto INI_ERR_END_OF_LINE = 0xFADA000C;
+static constexpr auto INI_ERR_ARRAY_TOO_SMALL = 0xFADA000D;
+static constexpr auto INI_ERR_ARRAY_TO_MANY_ITEMS = 0xFADA000E;
+
 static constexpr char FITINI_HEADER[7] = "FITini";
 static constexpr char FITINI_FOOTER[7] = "FITend";
 static constexpr long FITINI_BLOCK_ID_MAX_SIZE = 50;
+static constexpr long FITINI_ARRAY_MAX_ITEMS = 9;
 
 #pragma pack(push, 4)
 struct FitIniBlock
@@ -34,11 +41,11 @@ struct FitIniBlock
 class FitIniFile : public File {
 # pragma region Fields
 public:
-    uint32_t num_blocks;
-    FitIniBlock* blocks;
-    uint32_t field_0x54;
-    uint32_t field_0x58;
-    uint32_t field_0x5c;
+    uint32_t num_blocks;        // 0x4x
+    FitIniBlock* blocks;        // 0x50
+    char* curr_block_id;        // 0x54
+    uint32_t curr_block_offset; // 0x58
+    uint32_t curr_block_size;   // 0x5c
 #pragma endregion
 
 public:
@@ -65,6 +72,24 @@ public:
 
     // protected: long __thiscall FitIniFile::textToLong(char *)
     long textToLong(char* line);
+
+    // protected: unsigned long __thiscall FitIniFile::textToULong(char *)
+    unsigned long textToULong(char* line);
+
+    // protected: char __thiscall FitIniFile::textToChar(char*)
+    char textToChar(char* line);
+
+    // protected: unsigned char __thiscall FitIniFile::textToUChar(char*)
+    unsigned char textToUChar(char* line);
+
+    // protected: short __thiscall FitIniFile::textToShort(char *)
+    short textToShort(char* line);
+
+    // protected: unsigned short __thiscall FitIniFile::textToUShort(char *)
+    short textToUShort(char* line);
+
+    // protected: float __thiscall FitIniFile::textToFloat(char *)
+    float textToFloat(char* line);
 
     // protected: long __thiscall FitIniFile::findNextBlockStart(char *,unsigned long)
     long findNextBlockStart(char* line, unsigned long line_length);
@@ -99,9 +124,84 @@ public:
     // protected: long __thiscall FitIniFile::copyString(char *,char *,unsigned long)
     long copyString(char* src, char* dst, unsigned long length);
 
-    long readIdLong(char* key, long* out_value);
+    // protected: long __thiscall FitIniFile::getNextWord(char * &,char *,unsigned long)
+    long getNextWord(char** line, char* buf, unsigned long buf_length);
 
-protected:
+    // protected: char __thiscall FitIniFile::mathToChar(char *)
+    char mathToChar(char*);
+
+    // protected: float __thiscall FitIniFile::mathToFloat(char *)
+    float mathToFloat(char*);
+
+    // protected: long __thiscall FitIniFile::mathToLong(char *)
+    long mathToLong(char*);
+
+    // protected: short __thiscall FitIniFile::mathToShort(char *)
+    short mathToShort(char*);
+
+    // protected: uchar __thiscall FitIniFile::mathToUChar(char *)
+    unsigned char mathToUChar(char*);
+
+    // protected: ulong __thiscall FitIniFile::mathToULong(char *)
+    long mathToULong(char*);
+
+    // protected: ushort __thiscall FitIniFile::mathToUShort(char *)
+    unsigned short mathToUShort(char*);
+
+    // public: long __thiscall FitIniFile::readIdBoolean(char *,int &)
+    long readIdBoolean(char* line, int* result);
+
+    // public: long __thiscall FitIniFile::readIdLong(char *,long &)
+    long readIdLong(char* key, long* result);
+
+    // public: long __thiscall FitIniFile::readIdChar(char *,char &)
+    long readIdChar(char* key, char* result);
+
+    // public: long __thiscall FitIniFile::readIdShort(char *,short &)
+    long readIdShort(char* key, short* result);
+
+    // public: long __thiscall FitIniFile::readIdFloat(char *,float &)
+    long readIdFloat(char* key, float* result);
+
+    // public: long __thiscall FitIniFile::readIdString(char *,char *,unsigned long)
+    long readIdString(char* key, char* buf, unsigned long buf_length);
+
+    // public: long __thiscall FitIniFile::readIdUChar(char *,unsigned char &)
+    long readIdUChar(char* key, unsigned char* result);
+
+    // public: long __thiscall FitIniFile::readIdLong(char *,unsigned long &)
+    long readIdULong(char* key, unsigned long* result);
+
+    // public: long __thiscall FitIniFile::readIdUShort(char *,unsigned short &)
+    long readIdUShort(char* key, unsigned short* result);
+
+    // public: long __thiscall FitIniFile::readIdLongArray(char *,long *,unsigned long) */
+    long readIdLongArray(char* key, long* buf, unsigned long buf_length);
+
+    // public: long __thiscall FitIniFile::writeBlock(char *)
+    long writeBlock(char* key);
+
+    // public: long __thiscall FitIniFile::writeIdLong(char *,long)
+    long writeIdLong(char* key, long value);
+
+    long writeIdShort(char* key, short value);
+
+    long writeIdUShort(char* key, unsigned short value);
+
+    long writeIdULong(char* key, unsigned long value);
+
+    long writeIdFloat(char* key, float value);
+
+    long writeIdString(char* key, char* value);
+
+    long writeIdBoolean(char* key, BOOL value);
+
+    long writeIdLongArray(char* key, long* values, unsigned long length);
+
+    long writeIdUShortArray(char* key, unsigned short* values, unsigned long length);
+
+    long writeIdUCharArray(char* key, unsigned char* values, unsigned long length);
+private:
     template<typename T>
     inline long NumberToText(const char* fmt, char* buf, T value, unsigned long buf_length)
     {
@@ -121,6 +221,197 @@ protected:
         buf[int_str_len] = '\0';
 
         return NO_ERR;
+    }
+
+    long __forceinline find_key_value(const char* prefix, char* id, unsigned char line_buf[256], char** value_start_out)
+    {
+        char key[256];
+
+        this->seek(this->curr_block_offset, SEEK_SET);
+        uint32_t block_end = this->curr_block_offset + this->curr_block_size;
+
+        // "b keyName"
+        sprintf((char*)key, "%s %s", prefix, id);
+        size_t key_len = strlen((char*)key);
+
+
+        // scan the file to find the line that starts with the key
+        while (this->pos < block_end)
+        {
+            this->readLine(line_buf, 254);
+
+            // found key
+            if (strnicmp(key, (char*)line_buf, key_len) == 0)
+            {
+                char* value_start = (char*)line_buf + key_len;
+
+                // Strip leading whitespace
+                while (isspace(*value_start))
+                {
+                    value_start += 1;
+                }
+
+                if (*value_start == '=')
+                {
+                    break;
+                }
+            }
+        }
+
+        if (this->pos >= block_end)
+        {
+            *value_start_out = nullptr;
+            return INI_ERR_VAR_NOT_FOUND;
+        }
+
+        char* equals_ptr = strstr((char*)line_buf, "=");
+
+        if (strstr((char*)line_buf, "=") == nullptr)
+        {
+            *value_start_out = nullptr;
+            return INI_ERR_MALFORMED_BLOCK;
+        }
+
+        *value_start_out = equals_ptr + 1; // skip =
+        // HOOK_DLOGF(FITINIFILE, INFO, "Found key line: %s", (char*)line_buf);
+
+        return NO_ERR;
+    }
+
+    long __forceinline find_array_key_value(
+        const char* prefix, 
+        char* id, 
+        unsigned char line_buf[256], 
+        char** value_start_out,
+        unsigned long buf_length,
+        uint32_t* block_end_out,
+        unsigned long *items_count_out
+    )
+    {
+        char key[256];
+        char prefix_buf[12];
+
+        this->seek(this->curr_block_offset, SEEK_SET);
+        uint32_t block_end = this->curr_block_offset + this->curr_block_size;
+        *block_end_out = block_end;
+
+        // "b keyName"
+        sprintf((char*)key, "] %s", id);
+        size_t key_len = strlen((char*)key);
+
+        sprintf((char*)prefix_buf, "%s[", prefix);
+        size_t prefix_len = strlen((char*)prefix_buf);
+
+        char* prefix_ptr = nullptr;
+        char* key_ptr = nullptr;
+
+        // scan the file to find the line that starts with the key
+        while (this->pos < block_end)
+        {
+            this->readLine(line_buf, 254);
+
+            // found key
+            prefix_ptr = (char*)strstr((char*)line_buf, prefix_buf);
+            key_ptr = (char*)strstr((char*)line_buf, key);
+
+            if (prefix_ptr != nullptr && key_ptr != nullptr)
+            {
+                break;
+            }
+        }
+
+        if (this->pos >= block_end)
+        {
+            *value_start_out = nullptr;
+            return INI_ERR_VAR_NOT_FOUND;
+        }
+
+        int items_count_digits = (int)key_ptr - (int)(prefix_ptr + 2);
+
+        if (items_count_digits >= FITINI_ARRAY_MAX_ITEMS)
+        {
+            return INI_ERR_ARRAY_TO_MANY_ITEMS;
+        }
+
+        char buf[12];
+        strncpy(buf, prefix_ptr + 2, items_count_digits);
+        buf[items_count_digits] = '\0';
+
+        unsigned long len = this->textToULong(buf);
+        *items_count_out = len;
+        if (buf_length < len)
+        {
+            return INI_ERR_ARRAY_TOO_SMALL;
+        }
+
+        char* equals_ptr = strstr((char*)line_buf, "=");
+
+        if (equals_ptr == nullptr)
+        {
+            *value_start_out = nullptr;
+            return INI_ERR_MALFORMED_BLOCK;
+        }
+
+        equals_ptr += 1;
+
+        while (isspace(*equals_ptr))
+        {
+            equals_ptr += 1;
+        }
+
+        *value_start_out = equals_ptr; // skip =
+
+        return NO_ERR;
+    }
+
+    template<typename T>
+    inline long WriteInteger(const char* fmt, char* key, T value)
+    {
+        unsigned char key_buf[256];
+
+        sprintf((char*)key_buf, "%s %s=%d\r\n", fmt, key, value);
+        size_t key_len = strlen((char*)key_buf);
+
+        HOOK_DLOGF(FITINIFILE, INFO, "FitIniFile::writeN('%s', '%s')", this->file_name, (char*)key_buf);
+
+        return this->write2(key_buf, key_len);
+    }
+
+    template<typename T>
+    inline long WriteIntegerArray(const char* fmt, char* key, T* values, unsigned long length)
+    {
+        unsigned char key_buf[256];
+        long total_written = 0;
+
+        sprintf((char*)key_buf, "%s[%d] %s=%d,", fmt, length, key, *values);
+        size_t key_len = strlen((char*)key_buf);
+        total_written += this->write2(key_buf, key_len);
+
+        HOOK_DLOGF(FITINIFILE, INFO, "FitIniFile::writeIdNArray('%s','%s') => %s", this->file_name, key, (char*)key_buf);
+
+        if (length > 1)
+        {
+            length -= 1;
+            values += 1;
+
+            while (length != 0)
+            {
+                sprintf((char*)key_buf, "%ld,", *values);
+                key_len = strlen((char*)key_buf);
+                total_written += this->write2(key_buf, key_len);
+
+                HOOK_DLOGF(FITINIFILE, INFO, "FitIniFile::writeIdNArray('%s','%s') => buf[%d]=%d", this->file_name, key_buf, length, *values);
+
+                length -= 1;
+                values += 1;
+            }
+        }
+
+        sprintf((char*)key_buf, "\r\n");
+        key_len = strlen((char*)key_buf);
+        total_written += this->write2(key_buf, key_len);
+
+        return total_written;
     }
 };
 
@@ -210,6 +501,7 @@ ASSERT_ALIGN(FitIniFile, 0x4);
 ASSERT_FIELD_OFFSET(FitIniFile, vtable, 0x00);
 ASSERT_FIELD_OFFSET(FitIniFile, num_blocks, 0x4C);
 ASSERT_FIELD_OFFSET(FitIniFile, blocks, 0x50);
-ASSERT_FIELD_OFFSET(FitIniFile, field_0x54, 0x54);
-ASSERT_FIELD_OFFSET(FitIniFile, field_0x5c, 0x5C);
+ASSERT_FIELD_OFFSET(FitIniFile, curr_block_id, 0x54);
+ASSERT_FIELD_OFFSET(FitIniFile, curr_block_offset, 0x58);
+ASSERT_FIELD_OFFSET(FitIniFile, curr_block_size, 0x5C);
 # pragma endregion
