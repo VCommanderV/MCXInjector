@@ -72,9 +72,9 @@ static BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved)
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(hinst);
         // start attach in a new thread
-        HANDLE h = CreateThread(NULL, 0, ThreadAttach, NULL, 0, NULL);
-        if (h) CloseHandle(h);
-
+        /*HANDLE h = CreateThread(NULL, 0, ThreadAttach, NULL, 0, NULL);
+        if (h) CloseHandle(h);*/
+        ThreadAttach(NULL);
 #ifdef WAIT_FOR_DEBUGGER
         LOG_DEBUG << "DEBUGGER: " << IsDebuggerPresent();
         while (IsDebuggerPresent() == FALSE) Sleep(10);

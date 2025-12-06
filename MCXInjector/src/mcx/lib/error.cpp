@@ -1,5 +1,6 @@
 #include "mcx_inject.hpp"
 #include "mcx/lib/error.hpp"
+#include "mcx/lib/error.hpp"
 
 // void (__cdecl ErrorHandler*)(unsigned int, char*, char*)
 static void __forceinline __cdecl Hook_ErrorHandler(unsigned int err, char* err_msg, char* undefined)
@@ -13,6 +14,12 @@ static void __forceinline __cdecl Hook_ErrorHandler(unsigned int err, char* err_
 void ErrorHandler(unsigned int err, char* err_msg, char* undefined)
 {
     Hook_ErrorHandler(err, err_msg, undefined);
+}
+
+void __cdecl Assert(int flag, unsigned int param_2, char *message, char* param_4)
+{
+    auto orig = (void(__cdecl*)(int, unsigned int, char*, char*))MCX_RUNTIME_ADDR(va_Assert);
+    return orig(flag, param_2, (char*)message, param_4);
 }
 
 static AutoFuncPatchRegister reg_ErrorHandler{

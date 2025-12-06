@@ -1,99 +1,197 @@
-#include "mcx/gui/a_object.h"
 #include "mcx_inject.hpp"
-#include <cassert>
+#include "mcx/lib/error.hpp"
+#include "mcx/lib/vfx.hpp"
+#include "mcx/gui/a_object.hpp"
 
-// __thiscall long x()
-static long __fastcall aObject_x(void* thisPtr, void* _) noexcept
+MCXI_CTOR_HOOK Hook_aObject_ctor(aObject* this_ptr, void* unused_edx)
 {
-    return aObject::fromPtr(thisPtr)->x;
+    this_ptr->vtable = (aObject_vtable*)MCX_RUNTIME_ADDR(va_aObject_vftable);
+    this_ptr->panel = nullptr;
+    this_ptr->background = nullptr;
+    this_ptr->animation_playing = FALSE;
+    this_ptr->port = nullptr;
+    this_ptr->force_45_pixels_maybe = FALSE;
+    this_ptr->initialization_state = 0;
+    this_ptr->paint_routine = nullptr;
+    this_ptr->field_0x4A0 = 0;
+    this_ptr->children_num = 0;
+    this_ptr->parent = nullptr;
+    this_ptr->animation = nullptr;
+    this_ptr->icon = nullptr;
+    this_ptr->field_0x4a8_maybe_rect_arr = nullptr;
+    this_ptr->drop_target_num = 0;
+    MOV_THIS_TO_EAX(this_ptr);
 }
 
-// __thiscall long y()
-static long __fastcall aObject_y(void* thisPtr, void* _) noexcept
+#pragma warning(disable:26495, justification:"Initialization happens in Hook_aObject_ctor" )
+aObject::aObject()
 {
-    return aObject::fromPtr(thisPtr)->y;
+    Hook_aObject_ctor(this, nullptr);
+}
+#pragma warning(default:26495)
+
+long aObject::init(long x, long y, long width, long height, char* param_5)
+{
+    this->height = height;
+    this->field_0x24 = height;
+    this->field_0x34 = height;
+    this->field_0x44 = height;
+    this->width = width;
+    this->x = x;
+    this->y = y;
+    this->field_0x20 = width;
+    this->field_0x28 = x;
+    this->field_0x2C = y;
+    this->field_0x30 = width;
+    this->field_0x38 = x;
+    this->field_0x3C = y;
+    this->field_0x40 = width;
+    this->field_0x48 = x;
+    this->field_0x4C = y;
+    this->some_x = 0;
+    this->field_0x68 = x;
+    this->field_0x6C = y;
+    this->state = aObjectState::NORMAL;
+    this->showing = -1;
+    this->dragging = FALSE;
+    this->transparent = FALSE;
+    this->back_color = 0xff;
+    this->drop_target_num = 0;
+
+    if (this->port != nullptr)
+    {
+        this->port->vtable->destroy(this->port);
+        if (this->port != nullptr)
+        {
+            delete this->port;
+        }
+        this->port = nullptr;
+    }
+
+    this->port = new aPort();
+    
+    if (this->port != nullptr)
+    {
+        new (port) aPort();
+    }
+
+    long init_res = this->port->vtable->init(this->port, width, height);
+
+    if (init_res != NO_ERR)
+    {
+        return init_res;
+    }
+
+    if (this->panel != nullptr)
+    {
+        delete this->panel;
+        this->panel = nullptr;
+    }
+
+    this->panel = new _pane();
+        
+    if (this->panel == nullptr)
+    {
+        return 3;
+    }
+
+    aPort* screenPort = *g_screenPort_ptr;
+    this->panel->window = screenPort->bitmap;
+    this->panel->x0 = x;
+    this->panel->y0 = y;   
+    this->panel->x1 = x + width;
+    this->panel->y1 = y + height;
+
+    this->hidden = FALSE;
+    this->hide_direction = HideDirection::DIRECTION_3;
+
+    if (this->paint_routine != nullptr)
+    {
+        this->paint_routine = nullptr;
+    }
+
+    if (this->field_0x4A0 != 0)
+    {
+        this->field_0x4A0 = 0;
+    }
+
+    this->children_num = 0;
+    this->parent = nullptr;
+    this->depth = 0;
+    this->animation = nullptr;
+    this->animation_playing = FALSE;
+    this->icon = nullptr;
+    this->initialization_state = -1;
+
+    return NO_ERR;
 }
 
-//static AutoVTablePatchRegister reg_aObject(
-//    "aObject", 
-//    0x0077ADD4,
-//    {
-//        {  0, nullptr }, // vector_deleting_destructor
-//        {  1, nullptr }, // init
-//        {  2, nullptr }, // destroy
-//        {  3, nullptr }, // FUN_0060f4c0
-//        {  4, nullptr }, // height
-//        {  5, (void*)&aObject_x }, // x
-//        {  6, (void*)&aObject_y }, // y
-//        {  7, nullptr }, // moveTo
-//        {  8, nullptr }, // resize
-//        {  9, nullptr }, // frame
-//        { 10, nullptr }, // addChild
-//        { 11, nullptr }, // removeChild
-//        { 12, nullptr }, // setParent
-//        { 13, nullptr }, // numberOfChildren
-//        { 14, nullptr }, // globalX
-//        { 15, nullptr }, // globalY
-//        { 16, nullptr }, // draw
-//        { 17, nullptr }, // findObject
-//        { 18, nullptr }, // pointInside
-//        { 19, nullptr }, // rectIntersect
-//        { 20, nullptr }, // rectIntersect (overload)
-//        { 21, nullptr }, // handleEvent
-//        { 22, nullptr }, // setBackground
-//        { 23, nullptr }, // setBackground (overload)
-//        { 24, nullptr }, // setAnimation
-//        { 25, nullptr }, // startAnimation
-//        { 26, nullptr }, // stopAnimation
-//        { 27, nullptr }, // background
-//        { 28, nullptr }, // animation
-//        { 29, nullptr }, // icon
-//        { 30, nullptr }, // setDepth
-//        { 31, nullptr }, // children
-//        { 32, nullptr }, // FUN_0060ef20
-//        { 33, nullptr }, // foremostChild
-//        { 34, nullptr }, // depth
-//        { 35, nullptr }, // child
-//        { 36, nullptr }, // dragStartX
-//        { 37, nullptr }, // dragStartY
-//        { 38, nullptr }, // dragging
-//        { 39, nullptr }, // startDrag
-//        { 40, nullptr }, // stopDrag
-//        { 41, nullptr }, // FUN_0060e8c0
-//        { 42, nullptr }, // leave
-//        { 43, nullptr }, // backColor
-//        { 44, nullptr }, // setBackColor
-//        { 45, nullptr }, // setIcon
-//        { 46, nullptr }, // setState
-//        { 47, nullptr }, // iconize
-//        { 48, nullptr }, // normalize
-//        { 49, nullptr }, // maximize
-//        { 50, nullptr }, // display
-//        { 51, nullptr }, // setPaintRoutine
-//        { 52, nullptr }, // setEventRoutine
-//        { 53, nullptr }, // paint
-//        { 54, nullptr }, // ptr
-//        { 55, nullptr }, // startModal
-//        { 56, nullptr }, // stopModal
-//        { 57, nullptr }, // state
-//        { 58, nullptr }, // port
-//        { 59, nullptr }, // setDisplayPort
-//        { 60, nullptr }, // drawFramed
-//        { 61, nullptr }, // drawBox
-//        { 62, nullptr }, // drawBox (overload)
-//        { 63, nullptr }, // FUN_0060a780
-//        { 64, nullptr }, // GetCamera
-//        { 65, nullptr }, // IsShowing
-//        { 66, nullptr }, // HideMe
-//        { 67, nullptr }, // IsHidden
-//        { 68, nullptr }, // SetHideDirection
-//        { 69, nullptr }, // SetTransparent
-//        { 70, nullptr }, // left
-//        { 71, nullptr }, // top
-//        { 72, nullptr }, // FUN_0060a800
-//        { 73, nullptr }, // bottom
-//        { 74, nullptr }, // checkSmackerPalette
-//        { 75, nullptr }, // getDropTargetCount
-//        { 76, nullptr }  // getDropTarget
-//    }
-//);
+int32_t aObject::getX() const
+{
+    return this->x;
+}
+
+int32_t aObject::getY() const
+{
+    return this->y;
+}
+
+int32_t aObject::getWidth() const
+{
+    return this->width;
+}
+
+int32_t aObject::getHeight() const
+{
+    return this->height;
+}
+
+void aObject::addChild(aObject* child)
+{
+    Assert(
+        this->children_num < MAX_CHILDREN,
+        this->children_num + 1,
+        (char*)"Too many children!", 
+        nullptr
+    );
+
+    Assert(
+        child->parent == nullptr || child->parent == this,
+        0,
+        (char*)" Adding child that's someone else's ",
+        nullptr
+    );
+
+    if (child == nullptr)
+    {
+        return;
+    }
+
+    this->vtable->removeChild(this, child);
+    child->vtable->setParent(child, this);
+    this->children[this->children_num] = child;
+    this->children_num += 1;
+
+    auto FUN_0060ef20 = reinterpret_cast<void(__thiscall*)(aObject*, int32_t)>(
+        *((void**)((char*)child->vtable + 0x80))
+    );
+    FUN_0060ef20(child, -1);
+    
+    child->vtable->moveTo(child, child->x, child->y, 0);
+}
+
+aAnimation* aObject::getAnimation()
+{
+    return this->animation;
+}
+
+static AutoFuncPatchRegister reg_aObject{
+    "aObject",
+    {
+        { (void*)va_aObject_ctor, (void*)Hook_aObject_ctor },
+        { (void*)va_aObject_init, GetMemberPtr(&aObject::init)},
+     /*   { (void*)va_aObject_x, GetMemberPtr(&aObject::getX)},
+        { (void*)va_aObject_y, GetMemberPtr(&aObject::getY)},*/
+        { (void*)va_aObject_addChild, GetMemberPtr(&aObject::addChild)},
+    }
+};

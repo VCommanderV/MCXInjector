@@ -63,7 +63,7 @@ int main(int argc, char** argv)
         NULL, // command line args
         NULL, NULL,
         FALSE,
-        CREATE_NEW_CONSOLE | CREATE_DEFAULT_ERROR_MODE,
+        CREATE_NEW_CONSOLE | CREATE_DEFAULT_ERROR_MODE | CREATE_SUSPENDED,
         NULL,
         work_dir, // working directory, if not set to the folder where the exe is, the process crashes
         &si,
