@@ -3,6 +3,8 @@
 
 static constexpr uintptr_t va_ErrorHandler = 0x0078def4;
 static constexpr uintptr_t va_Assert = 0x00644250;
+static constexpr uintptr_t va_Fatal = 0x00644180;
+static constexpr uintptr_t va_GeneralMsg = 0x006440b0;
 
 static constexpr uintptr_t va_GlobalLastError = 0x007d8f9c;
 
@@ -17,6 +19,12 @@ void ErrorHandler(unsigned int err, char* err_msg, char* undefined);
 
 // void __cdecl Assert(int,unsigned int,char *,char*)
 void __cdecl Assert(int test, unsigned int err_code, char* err_msg, char* param_4);
+
+// void __cdecl Fatal(unsigned int,char *,char *)
+void __cdecl Fatal(unsigned int err_code, char* err_msg, char* param_3);
+
+// void __cdecl GeneralMsg(char *)
+void __cdecl GeneralMsg(char*);
 
 #define STOP(err, fmt, ...) \
 	char err_msg[164]; \

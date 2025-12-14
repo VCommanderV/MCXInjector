@@ -1,19 +1,21 @@
 #include "mcx_inject.hpp"
+#include "mcx/lib/a_globs.hpp"
 #include "mcx/lib/error.hpp"
 #include "mcx/lib/vfx.hpp"
+#include "mcx/gui/a_animation.hpp"
 #include "mcx/gui/a_object.hpp"
 
 MCXI_CTOR_HOOK Hook_aObject_ctor(aObject* this_ptr, void* unused_edx)
 {
     this_ptr->vtable = (aObject_vtable*)MCX_RUNTIME_ADDR(va_aObject_vftable);
-    this_ptr->panel = nullptr;
-    this_ptr->background = nullptr;
+    this_ptr->display_port = nullptr;
+    this_ptr->background_port = nullptr;
     this_ptr->animation_playing = FALSE;
-    this_ptr->port = nullptr;
+    this_ptr->render_port = nullptr;
     this_ptr->force_45_pixels_maybe = FALSE;
     this_ptr->initialization_state = 0;
     this_ptr->paint_routine = nullptr;
-    this_ptr->field_0x4A0 = 0;
+    this_ptr->event_routine = 0;
     this_ptr->children_num = 0;
     this_ptr->parent = nullptr;
     this_ptr->animation = nullptr;
@@ -35,7 +37,7 @@ long aObject::init(long x, long y, long width, long height, char* param_5)
     this->height = height;
     this->field_0x24 = height;
     this->field_0x34 = height;
-    this->field_0x44 = height;
+    this->icon_height = height;
     this->width = width;
     this->x = x;
     this->y = y;
@@ -45,12 +47,12 @@ long aObject::init(long x, long y, long width, long height, char* param_5)
     this->field_0x30 = width;
     this->field_0x38 = x;
     this->field_0x3C = y;
-    this->field_0x40 = width;
+    this->icon_width = width;
     this->field_0x48 = x;
     this->field_0x4C = y;
-    this->some_x = 0;
-    this->field_0x68 = x;
-    this->field_0x6C = y;
+    this->animation_offset = 0;
+    this->original_x = x;
+    this->original_y = y;
     this->state = aObjectState::NORMAL;
     this->showing = -1;
     this->dragging = FALSE;
@@ -58,61 +60,61 @@ long aObject::init(long x, long y, long width, long height, char* param_5)
     this->back_color = 0xff;
     this->drop_target_num = 0;
 
-    if (this->port != nullptr)
+    if (this->render_port != nullptr)
     {
-        this->port->vtable->destroy(this->port);
-        if (this->port != nullptr)
+        this->render_port->vtable->destroy(this->render_port);
+        if (this->render_port != nullptr)
         {
-            delete this->port;
+            delete this->render_port;
         }
-        this->port = nullptr;
+        this->render_port = nullptr;
     }
 
-    this->port = new aPort();
+    this->render_port = new aPort();
     
-    if (this->port != nullptr)
+    if (this->render_port != nullptr)
     {
-        new (port) aPort();
+        new (render_port) aPort();
     }
 
-    long init_res = this->port->vtable->init(this->port, width, height);
+    long init_res = this->render_port->vtable->init(this->render_port, width, height);
 
     if (init_res != NO_ERR)
     {
         return init_res;
     }
 
-    if (this->panel != nullptr)
+    if (this->display_port != nullptr)
     {
-        delete this->panel;
-        this->panel = nullptr;
+        delete this->display_port;
+        this->display_port = nullptr;
     }
 
-    this->panel = new _pane();
+    this->display_port = new _pane();
         
-    if (this->panel == nullptr)
+    if (this->display_port == nullptr)
     {
         return 3;
     }
 
     aPort* screenPort = *g_screenPort_ptr;
-    this->panel->window = screenPort->bitmap;
-    this->panel->x0 = x;
-    this->panel->y0 = y;   
-    this->panel->x1 = x + width;
-    this->panel->y1 = y + height;
+    this->display_port->window = screenPort->bitmap;
+    this->display_port->x0 = x;
+    this->display_port->y0 = y;   
+    this->display_port->x1 = x + width;
+    this->display_port->y1 = y + height;
 
     this->hidden = FALSE;
-    this->hide_direction = HideDirection::DIRECTION_3;
+    this->hide_direction = HideDirection::DIRECTION_DOWN;
 
     if (this->paint_routine != nullptr)
     {
         this->paint_routine = nullptr;
     }
 
-    if (this->field_0x4A0 != 0)
+    if (this->event_routine != 0)
     {
-        this->field_0x4A0 = 0;
+        this->event_routine = 0;
     }
 
     this->children_num = 0;
@@ -124,6 +126,11 @@ long aObject::init(long x, long y, long width, long height, char* param_5)
     this->initialization_state = -1;
 
     return NO_ERR;
+}
+
+void aObject::destroy()
+{
+    // TODO: requires aSystem
 }
 
 int32_t aObject::getX() const
@@ -144,6 +151,140 @@ int32_t aObject::getWidth() const
 int32_t aObject::getHeight() const
 {
     return this->height;
+}
+
+int32_t aObject::getTop()
+{
+    return this->vtable->getY(this);
+}
+
+int32_t aObject::getLeft()
+{
+    return this->vtable->getX(this);
+}
+
+int32_t aObject::getRight() const
+{
+    return this->x + this->width;
+}
+
+int32_t aObject::getBottom() const
+{
+    return this->y + this->height;
+}
+
+int32_t aObject::getGlobalX() const
+{
+    aObject* parent = this->parent;
+    if (parent != nullptr) {
+        return parent->vtable->globalX(parent) + this->x;
+    }
+    return this->x;
+}
+
+int32_t aObject::getGlobalY() const
+{
+    aObject* parent = this->parent;
+    if (parent != nullptr) {
+        return parent->vtable->globalY(parent) + this->y;
+    }
+    return this->y;
+}
+
+// State getters
+int32_t aObject::getState() const
+{
+    return this->state;
+}
+
+int aObject::isShowing() const
+{
+    return this->showing;
+}
+
+int aObject::isHidden() const
+{
+    return this->hidden;
+}
+
+int aObject::isDragging() const
+{
+    return this->dragging;
+}
+
+int32_t aObject::getDragStartX() const
+{
+    return this->drag_start_x;
+}
+
+int32_t aObject::getDragStartY() const
+{
+    return this->drag_start_y;
+}
+
+int32_t aObject::getDepth() const
+{
+    return this->depth;
+}
+
+int32_t aObject::getBackColor() const
+{
+    return this->back_color;
+}
+
+int32_t aObject::getNumberOfChildren() const
+{
+    return this->children_num;
+}
+
+aObject* aObject::getChildren() const
+{
+    return nullptr;
+}
+
+aPort* aObject::getPort() const
+{
+    return this->render_port;
+}
+
+aPort* aObject::getBackground() const
+{
+    return this->background_port;
+}
+
+_pane* aObject::getFrame() const
+{
+    return this->display_port;
+}
+
+void* aObject::getPtr() const
+{
+    if (this->render_port != nullptr)
+    {
+        return this->render_port->getPixels();
+    }
+
+    return nullptr;
+}
+
+aAnimation* aObject::getAnimation()
+{
+    return this->animation;
+}
+
+aAnimation* aObject::getIcon() const
+{
+    return this->icon;
+}
+
+void* aObject::getCamera() const
+{
+    return nullptr;
+}
+
+int32_t aObject::getDropTargetCount() const
+{
+    return this->drop_target_num;
 }
 
 void aObject::addChild(aObject* child)
@@ -180,9 +321,582 @@ void aObject::addChild(aObject* child)
     child->vtable->moveTo(child, child->x, child->y, 0);
 }
 
-aAnimation* aObject::getAnimation()
+aObject* aObject::child(long child_idx)
 {
-    return this->animation;
+    if (child_idx >= this->children_num)
+    {
+        return nullptr;
+    }
+
+    return this->children[child_idx];
+}
+
+void aObject::display()
+{
+    if (this->showing == FALSE)
+    {
+        return;
+    }
+
+    if (this->vtable->IsHidden(this) != FALSE && this->animation_offset == 0)
+    {
+        return;
+    }
+
+    if (this->state == ICONIZED)
+    {
+        if (this->icon != nullptr)
+        {
+            this->vtable->draw(this);
+        }
+    }
+    else
+    {
+        if (this->animation != nullptr)
+        {
+            auto anim_draw = reinterpret_cast<void(__thiscall*)(aAnimation*, _pane*, long, long)>(
+                MCX_RUNTIME_ADDR(va_aAnimation_draw)
+            );
+            anim_draw(this->animation, this->render_port->frame, 0, 0);
+            this->vtable->draw(this);
+        }
+    }
+
+    if (this->animation_offset != 0)
+    {
+        // handle animation effect?
+        if (this->hide_direction == DIRECTION_LEFT || this->hide_direction == DIRECTION_RIGHT  )
+        {
+            this->vtable->moveTo(this, this->getX() + this->animation_offset, this->getY(), -1);
+        }
+        else
+        {
+            this->vtable->moveTo(this, this->getX(), this->getY() + this->animation_offset, -1);
+        }
+
+        bool should_reset_offset = false;
+
+        if (this->hidden == 0)
+        {
+            // not explicitly hidden, check if sliding animation went off-screen
+            int offset = this->animation_offset;
+            bool is_negative_offset = offset < 0;
+            bool is_out_of_bounds = false;
+
+            int global_x = this->vtable->globalX(this);
+            int global_y = this->vtable->globalY(this);
+
+            if (is_negative_offset)
+            {
+                // Moving left/up - check if went past left/top edge
+                is_out_of_bounds = (this->original_x < global_x) || (this->original_y < global_y);
+            }
+            else if (offset > 0) 
+            {
+                // moving right/down, check if went past right/bottom edge
+                is_out_of_bounds = (global_x < this->original_x) && (this->original_y < global_y);
+            }
+
+            if (is_out_of_bounds && this->parent != nullptr) 
+            {
+                // Object slid out of bounds, reposition relatively to parent
+                aObject* parent = this->parent;
+                int parent_global_x = parent->vtable->globalX(parent);
+                int parent_global_y = parent->vtable->globalY(parent);
+                this->vtable->moveTo(this, 
+                    this->original_x - parent_global_x,
+                    this->original_y - parent_global_y, -1);
+            }
+            else if (!is_out_of_bounds) 
+            {
+                should_reset_offset = true;
+            }
+        }
+        else {
+            // explicitly hidden, check if still intersects application window
+            aObject* application = mcx::GetApplication(); // TODO: it's aSystem
+            int32_t app_width = application->vtable->getWidth(application);
+            int32_t app_height = application->vtable->getHeight(application);
+            int intersects = this->vtable->rectIntersect(this, 0, 0, app_width, app_height);
+
+            if (intersects == FALSE) {
+                // no longer visible, animation complete
+                should_reset_offset = true;
+            }
+        }
+
+        if (should_reset_offset != FALSE) {
+            this->animation_offset = 0;
+        }
+    }
+    
+    if (this->render_port != nullptr) 
+    {
+        this->render_port->copyTo(this->display_port, 0, 0, this->transparent);
+    }
+
+    if (this->state != ICONIZED && this->children_num > 0) 
+    {
+        for (int i = 0; i < this->children_num; i++) 
+        {
+            aObject* child = this->children[i];
+            child->vtable->display(child);
+        }
+    }
+
+    return;
+}
+
+void aObject::draw()
+{
+    if (this->state == ICONIZED)
+    {
+        this->icon->draw(this->render_port->frame, 0, 0);
+        return;
+    }
+    
+    if (this->background_port != nullptr)
+    {
+        this->background_port->copyTo(this->render_port->frame, 0, 0, -1);
+    }
+
+    if (this->animation != nullptr && this->animation_playing != FALSE)
+    {
+        this->animation->draw(this->render_port->frame, 0, 0);
+    }
+    
+    this->vtable->paint(this);
+
+    if (this->children_num > 0)
+    {
+        for (int i = 0; i < this->children_num; i++)
+        {
+            aObject* child = this->children[i];
+            child->vtable->draw(child);
+        }
+    }
+}
+
+aObject* aObject::findObject(long pos_x, long pos_y)
+{
+    HOOK_DLOGF(AOBJECT, INFO, "aObject::findObject(%p,%d,%d)", this, pos_x, pos_y);
+
+    if (this->state != ICONIZED)
+    {
+        if (this->showing == 0)
+        {
+            return nullptr;
+        }
+
+        if (this->children_num > 0)
+        {
+            // iterate backwards to find first children in z-order
+            for (int i = this->children_num - 1; i >= 0; i--)
+            {
+                aObject* child = this->children[i];
+                aObject* found = child->vtable->findObject(child, pos_x, pos_y);
+                if (found != nullptr)
+                {
+                    //HOOK_DLOGF(AOBJECT, INFO, "aObject::findObject(%p,%d,%d) -> %p", this, pos_x, pos_y, found);
+                    return found;
+                }
+            }
+        }
+    }
+
+    if (this->showing != 0 
+        && this->display_port != nullptr
+        && this->vtable->pointInside(this, pos_x, pos_y) != FALSE)
+    {
+        //HOOK_DLOGF(AOBJECT, INFO, "aObject::findObject(%p,%d,%d) -> (self)", this, pos_x, pos_y);
+        return this;
+    }
+
+    //HOOK_DLOGF(AOBJECT, INFO, "aObject::findObject(%p,%d,%d) -> NOT_FOUND", this, pos_x, pos_y);
+    return nullptr;
+}
+
+aObject* aObject::foremostChild(long find_depth)
+{
+    if (this->children_num <= 0)
+    {
+        return nullptr;
+    }
+
+    for (int i = 0; i < this->children_num; i++)
+    {
+        aObject* child = this->children[i];
+        if (child->depth == find_depth)
+        {
+            return child;
+        }
+    }
+
+    return nullptr;
+}
+
+void aObject::HideMe(BOOL hide)
+{
+    if (this->hidden == hide || this->original_x != 0)
+    {
+        return;
+    }
+
+    if (hide != 0)
+    {
+        this->original_x = this->vtable->globalX(this);
+        this->original_y = this->vtable->globalY(this);
+        switch (this->hide_direction)
+        {
+        case DIRECTION_LEFT:
+            {
+                int32_t global_x = this->vtable->globalX(this);
+                int32_t this_width = this->vtable->getWidth(this);
+                this->hidden = hide;
+                this->original_x = -(global_x + this_width);
+            }
+            return;
+        case DIRECTION_UP:
+            {
+                int32_t global_y = this->vtable->globalY(this);
+                int32_t this_height = this->vtable->getHeight(this);
+                this->hidden = hide;
+                this->original_x = -(global_y + this_height);
+            }
+            return;
+        case DIRECTION_RIGHT:
+            {
+                int32_t global_x = this->vtable->globalX(this);
+                aObject* application = mcx::GetApplication();
+                int32_t app_width = application->vtable->getWidth(application);
+                this->animation_offset = app_width - global_x;
+                this->hidden = hide;
+            }
+            return;
+        case DIRECTION_DOWN:
+            {
+                int32_t global_y = this->vtable->globalY(this);
+                aObject* application = mcx::GetApplication();
+                int32_t app_height = application->vtable->getHeight(application);
+                this->animation_offset = app_height - global_y;
+                this->hidden = hide;
+            }
+            return;
+        default:
+            this->hidden = FALSE;
+            this->original_x = 0;
+            return;
+        }
+    }
+
+    int32_t global_x = this->vtable->globalX(this);
+
+    if (this->original_x != global_x)
+    {
+        this->hidden = FALSE;
+        this->original_x -= global_x;
+        return;
+    }
+
+    this->hidden = FALSE;
+    this->original_x = original_y - this->vtable->globalY(this);
+}
+
+void aObject::moveTo(int32_t new_x, int32_t  new_y, int flag)
+{
+    this->x = new_x;
+    this->y = new_y;
+
+    aObject* parent = this->parent;
+    int32_t glob_x = 0;
+    int32_t glob_y = 0;
+
+    if (parent != nullptr)
+    {
+        glob_x = parent->vtable->globalX(parent);
+        glob_y = parent->vtable->globalY(parent);
+    }
+
+    _pane* d = this->display_port;
+    d->x0 = glob_x + new_x;
+    d->y0 = glob_y + new_y;
+    d->x1 = (this->width - 1) + d->x0;
+    d->y1 = (this->height - 1) + d->y0;
+
+    if (flag == 0)
+    {
+        this->original_x = new_x;
+        this->original_y = new_y;
+    }
+
+    if (this->children_num > 0)
+    {
+        for (int i = 0; i < this->children_num; i++)
+        {
+            aObject* child = this->children[i];
+            int32_t child_x = child->vtable->getX(child);
+            int32_t child_y = child->vtable->getY(child);
+            child->vtable->moveTo(child, child_x, child_y, 0);
+        }
+    }
+}
+
+void aObject::drawBox(uint8_t color, RECT rect)
+{
+    this->vtable->drawBox2(this, color, rect.left, rect.top, rect.right, rect.bottom);
+}
+
+void aObject::drawBox2(uint8_t color, int32_t left, int32_t top, int32_t right, int32_t bottom)
+{
+    if (left == -1)
+    {
+        left = 0;
+    }
+
+    if (top == -1)
+    {
+        top = 0;
+    }
+
+    if (right == -1)
+    {
+        right = this->vtable->getWidth(this) - 1;
+    }
+
+    if (bottom == -1)
+    {
+        bottom = this->vtable->getHeight(this) - 1;
+    }
+
+    _pane* dst = this->render_port->frame;
+
+    // top,left -> top,right (upper edge)
+    _VFX_draw_line_PTR(dst, left, top, right, top, 0, color);
+    // top,left -> bottom,lef (left edge)
+    _VFX_draw_line_PTR(dst, left, top, left, bottom, 0, color);
+    // bottom,left -> bottom,right (bottom edge)
+    _VFX_draw_line_PTR(dst, left, bottom, right, bottom, 0, color);
+    // top,right -> bottom,right (right edge)
+    _VFX_draw_line_PTR(dst, right, top, right, bottom, 0, color);
+}
+
+void aObject::drawFramed(BOOL inverted_frame, BOOL wipe)
+{
+    int inset1 = inverted_frame ? 12 : 4;
+    int inset2 = inverted_frame ? 10 : 6;
+
+    inset1 = 32;
+
+    if (wipe != FALSE && this->back_color != 0xff)
+    {
+        long bg_color = this->vtable->backColor(this);
+        _VFX_pane_wipe_PTR(
+            this->render_port->frame,
+            bg_color
+        );
+    }
+
+    _pane* dst = this->render_port->frame;
+    
+    int right = this->vtable->getWidth(this) - 1;
+    int bottom = this->vtable->getHeight(this) - 1;
+
+    // outer frame
+    _VFX_draw_line_PTR(dst, 0, 0, right, 0, 0, 0); 
+    _VFX_draw_line_PTR(dst, 0, 0, 0, bottom, 0, 0);
+    _VFX_draw_line_PTR(dst, 0, bottom, right, bottom, 0, 0);
+    _VFX_draw_line_PTR(dst, right, 0, right, bottom, 0, 0);
+
+    // inner 1-pixel frame
+    _VFX_draw_line_PTR(dst, 1, 1, right - 2, 1, 0, 0);
+    _VFX_draw_line_PTR(dst, 1, 1, 1, bottom - 2, 0, 0);
+    _VFX_draw_line_PTR(dst, 1, bottom - 1, right - 2, bottom - 1, 0, 0);
+    _VFX_draw_line_PTR(dst, right - 1, 1, right - 1, bottom - 2, 0, 0);
+
+    // inner 2-pixel frame
+    _VFX_draw_line_PTR(dst, 2, 2, right - 3, 2, 0, 0);
+    _VFX_draw_line_PTR(dst, 2, 2, 2, bottom - 3, 0, 0);
+    _VFX_draw_line_PTR(dst, 2, bottom - 2, right - 3, bottom - 2, 0, 0);
+    _VFX_draw_line_PTR(dst, right - 2, 2, right - 2, bottom - 3, 0, 0);
+
+    // bevel lines based on frame style
+    _VFX_draw_line_PTR(dst, inset1, inset1, right - inset1, inset1, 0, 0);
+    _VFX_draw_line_PTR(dst, inset2, inset2, right - inset2, inset2, 0, 0);
+    _VFX_draw_line_PTR(dst, inset1, inset1, inset1, bottom - inset1, 0, 0);
+    _VFX_draw_line_PTR(dst, inset2, inset2, inset2, bottom - inset2, 0, 0);
+}
+
+void aObject::FillBox(short top, short right, short bottom, short left, uint8_t color)
+{
+    _pane* pane = this->render_port->frame;
+
+    // local copy of the pane rect
+    _pane rect = *pane  ;
+
+    // override edges
+    rect.x0 = left;
+    rect.y0 = top;
+    rect.x1 = right;
+    rect.y1 = bottom;
+
+    // fill the region
+    _VFX_pane_wipe_PTR(&rect, color);
+}
+
+long aObject::setAnimation(char* filename)
+{
+    if (this->animation != nullptr)
+    {
+        this->animation->reset();
+        if (this->animation != nullptr)
+        {
+            delete this->animation;
+        }
+        this->animation = nullptr;
+    }
+
+    this->animation = new aAnimation();
+    return this->animation->init(filename);
+}
+
+long aObject::setBackground(char* filename)
+{
+    if (this->background_port != nullptr)
+    {
+        this->background_port->destroy();
+        if (this->background_port != nullptr)
+        {
+            delete this->background_port;
+        }
+        this->background_port = nullptr;
+    }
+
+    this->background_port = new aPort();
+
+    if (this->background_port == nullptr)
+    {
+        Fatal(0, (char*)"Not enough memory to create background port", nullptr);
+    }
+
+    return this->background_port->init3(filename);
+}
+
+long aObject::setBackground2(long art_packet)
+{
+    if (this->background_port != nullptr)
+    {
+        this->background_port->destroy();
+        if (this->background_port != nullptr)
+        {
+            delete this->background_port;
+        }
+        this->background_port = nullptr;
+    }
+
+    this->background_port = new aPort();
+
+    if (this->background_port == nullptr)
+    {
+        Fatal(0, (char*)"Not enough memory to create background port", nullptr);
+    }
+
+    return this->background_port->init2(art_packet);
+}
+
+void aObject::SetBit(long x_, long y_, uint8_t bit)
+{
+    if (x_ <= -1)
+    {
+        return;
+    }
+
+    int32_t width_ = this->vtable->getWidth(this);
+
+    if (x_ < width_ && y_ > -1)
+    {
+        int32_t height_ = this->vtable->getHeight(this);
+        if (y_ < height_)
+        {
+            uint8_t* pixels = this->render_port->getPixels();
+            if (pixels != nullptr)
+            {
+                pixels[width_ * y_ + x_] = bit;
+            }
+        }
+    }
+}
+
+void aObject::setDepth(long new_depth)
+{
+    aObject* parent = this->parent;
+
+    if (parent != nullptr)
+    {
+        parent->vtable->removeChild(parent, this);
+    }
+    
+    this->depth = new_depth;
+
+    if (parent != nullptr)
+    {
+        parent->vtable->addChild(parent, this);
+    }
+}
+
+void aObject::setDisplayPort(aPort* new_display_port)
+{
+    _window* bitmap = new_display_port->bitmap;
+    this->display_port->window = bitmap;
+    if (this->children_num > 0)
+    {
+        for (int i = 0; i < this->children_num; i++)
+        {
+            aObject* child = this->children[i];
+            child->vtable->setDisplayPort(child, new_display_port);
+        }
+    }
+}
+
+void aObject::setEventRoutine(event_routine_t new_event_routine)
+{
+    this->event_routine = new_event_routine;
+}
+
+void aObject::handleEvent(aEvent* evt)
+{
+
+}
+
+long aObject::setIcon(char* filename)
+{
+    if (this->icon != nullptr)
+    {
+        this->icon->reset();
+        if (this->icon != nullptr)
+        {
+            delete this->icon;
+        }
+        this->icon = nullptr;
+    }
+
+    this->icon = new aAnimation();
+    long init_res = this->icon->init(filename);
+
+    if (init_res == NO_ERR)
+    {
+        this->icon_width = this->icon->getWidth();
+        this->icon_height = this->icon->getHeight();
+    }
+
+    return init_res;
+}
+
+void aObject::paint()
+{
+    if (this->paint_routine != nullptr)
+    {
+        this->paint_routine(this);
+    }
 }
 
 static AutoFuncPatchRegister reg_aObject{
@@ -190,8 +904,54 @@ static AutoFuncPatchRegister reg_aObject{
     {
         { (void*)va_aObject_ctor, (void*)Hook_aObject_ctor },
         { (void*)va_aObject_init, GetMemberPtr(&aObject::init)},
-     /*   { (void*)va_aObject_x, GetMemberPtr(&aObject::getX)},
-        { (void*)va_aObject_y, GetMemberPtr(&aObject::getY)},*/
+        { (void*)va_aObject_x, GetMemberPtr(&aObject::getX) },
+        { (void*)va_aObject_y, GetMemberPtr(&aObject::getY) },
+        { (void*)va_aObject_width, GetMemberPtr(&aObject::getWidth) },
+        { (void*)va_aObject_height, GetMemberPtr(&aObject::getHeight) },
+        { (void*)va_aObject_top, GetMemberPtr(&aObject::getTop) },
+        { (void*)va_aObject_left, GetMemberPtr(&aObject::getLeft) },
+        { (void*)va_aObject_right, GetMemberPtr(&aObject::getRight) },
+        { (void*)va_aObject_bottom, GetMemberPtr(&aObject::getBottom) },
+        { (void*)va_aObject_globalX, GetMemberPtr(&aObject::getGlobalX) },
+        { (void*)va_aObject_globalY, GetMemberPtr(&aObject::getGlobalY) },
+        { (void*)va_aObject_state, GetMemberPtr(&aObject::getState) },
+        { (void*)va_aObject_IsShowing, GetMemberPtr(&aObject::isShowing) },
+        { (void*)va_aObject_IsHidden, GetMemberPtr(&aObject::isHidden) },
+        { (void*)va_aObject_dragging, GetMemberPtr(&aObject::isDragging) },
+        { (void*)va_aObject_dragStartX, GetMemberPtr(&aObject::getDragStartX) },
+        { (void*)va_aObject_dragStartY, GetMemberPtr(&aObject::getDragStartY) },
+        { (void*)va_aObject_depth, GetMemberPtr(&aObject::getDepth) },
+        { (void*)va_aObject_backColor, GetMemberPtr(&aObject::getBackColor) },
+        { (void*)va_aObject_numberOfChildren, GetMemberPtr(&aObject::getNumberOfChildren) },
+        { (void*)va_aObject_children, GetMemberPtr(&aObject::getChildren) },
+        { (void*)va_aObject_port, GetMemberPtr(&aObject::getPort) },
+        { (void*)va_aObject_background, GetMemberPtr(&aObject::getBackground) },
+        { (void*)va_aObject_frame, GetMemberPtr(&aObject::getFrame) },
+        { (void*)va_aObject_ptr, GetMemberPtr(&aObject::getPtr) },
+        { (void*)va_aObject_icon, GetMemberPtr(&aObject::getIcon) },
+        { (void*)va_aObject_GetCamera, GetMemberPtr(&aObject::getCamera) },
+        { (void*)va_aObject_getDropTargetCount, GetMemberPtr(&aObject::getDropTargetCount) },
         { (void*)va_aObject_addChild, GetMemberPtr(&aObject::addChild)},
+        { (void*)va_aObject_display, GetMemberPtr(&aObject::display)},
+        { (void*)va_aObject_draw, GetMemberPtr(&aObject::draw)},
+        { (void*)va_aObject_findObject, GetMemberPtr(&aObject::findObject)},
+        { (void*)va_aObject_foremostChild, GetMemberPtr(&aObject::foremostChild)},
+        { (void*)va_aObject_HideMe, GetMemberPtr(&aObject::HideMe)},
+        { (void*)va_aObject_moveTo, GetMemberPtr(&aObject::moveTo)},
+        { (void*)va_aObject_animation, GetMemberPtr(&aObject::getAnimation)},
+        { (void*)va_aObject_child, GetMemberPtr(&aObject::child)},
+        { (void*)va_aObject_drawBox, GetMemberPtr(&aObject::drawBox)},
+        { (void*)va_aObject_drawBox2, GetMemberPtr(&aObject::drawBox2)},
+        { (void*)va_aObject_drawFramed, GetMemberPtr(&aObject::drawFramed)},
+        { (void*)va_aObject_FillBox, GetMemberPtr(&aObject::FillBox)},
+        { (void*)va_aObject_setAnimation, GetMemberPtr(&aObject::setAnimation)},
+        { (void*)va_aObject_setBackground, GetMemberPtr(&aObject::setBackground)},
+        { (void*)va_aObject_setBackground2, GetMemberPtr(&aObject::setBackground2)},
+        { (void*)va_aObject_SetBit, GetMemberPtr(&aObject::SetBit)},
+        { (void*)va_aObject_setDisplayPort, GetMemberPtr(&aObject::setDisplayPort)},
+        { (void*)va_aObject_setDepth, GetMemberPtr(&aObject::setDepth)},
+        { (void*)va_aObject_setEventRoutine, GetMemberPtr(&aObject::setEventRoutine)},
+        { (void*)va_aObject_setIcon, GetMemberPtr(&aObject::setIcon)},
+        { (void*)va_aObject_paint, GetMemberPtr(&aObject::paint)},
     }
 };

@@ -1005,6 +1005,47 @@ long File::writeString(char* string)
     return ptr - string;
 }
 
+long File::readLong()
+{
+    long result = 0;
+
+    // in RAM
+    if (this->in_ram != FALSE && this->fastfile_buf != nullptr)
+    {
+        // readLong?
+        result = *(long*)(this->pos + (int)this->fastfile_buf);
+        this->pos += 4;
+        return result;
+    }
+
+    // FastFile
+    if (this->fastfile != nullptr)
+    {
+        this->fastfile->readFast(this->fastfile_handle, &result, 4);
+        this->pos += 4;
+        return result;
+    }
+
+    // Regular file
+    if (this->isOpen() == FALSE)
+    {
+        // not open?    
+        SetGlobalLastError(ERR_BADF_INVALID_ENTRY);
+        return 0;
+    }
+
+    this->pos += 4;
+    DWORD bytes_read = 0;
+    BOOL read_res = ReadFile(this->file_handle, &result, 4, &bytes_read, nullptr);
+    if (read_res == FALSE)
+    {
+        SetGlobalLastError(GetLastError());
+        return result;
+    }
+
+    return result;
+}
+
 long File::writeWord(short word_)
 {
     return this->writeT<short>(word_);

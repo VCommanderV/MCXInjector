@@ -279,6 +279,20 @@ static constexpr uintptr_t va_HeapList_removeHeap = 0x00648940;
 #pragma region Globals
 static UserHeap** g_systemHeap_ptr = reinterpret_cast<UserHeap**>(MCX_RUNTIME_ADDR(va_systemHeap));
 static UserHeap** g_guiHeap_ptr = reinterpret_cast<UserHeap**>(MCX_RUNTIME_ADDR(va_guiHeap));
+
+namespace mcx::heap
+{
+	static inline UserHeap* GetSystemHeap()
+	{
+		return *g_systemHeap_ptr;
+	}
+
+	static inline UserHeap* GetGuiHeap()
+	{
+		return *g_guiHeap_ptr;
+	}
+}
+
 #pragma endregion
 
 #pragma region Layout asserts

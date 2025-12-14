@@ -22,6 +22,18 @@ void __cdecl Assert(int flag, unsigned int param_2, char *message, char* param_4
     return orig(flag, param_2, (char*)message, param_4);
 }
 
+void __cdecl Fatal(unsigned int err_code, char* err_msg, char* param_3)
+{
+    auto orig = (void(__cdecl*)(unsigned int, char*, char*))MCX_RUNTIME_ADDR(va_Fatal);
+    return orig(err_code, err_msg, param_3);
+}
+
+void __cdecl GeneralMsg(char* msg)
+{
+    auto orig = (void(__cdecl*)(char*))MCX_RUNTIME_ADDR(va_Fatal);
+    return orig(msg);
+}
+
 static AutoFuncPatchRegister reg_ErrorHandler{
     "ErrorHandler",
     {

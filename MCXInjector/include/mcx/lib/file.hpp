@@ -16,6 +16,7 @@ constexpr auto FILE_ERR_PARENT_READONLY = 0xBADF0011;
 constexpr auto FILE_ERR_WRITE_FAIL = 0xBADF000A;
 
 constexpr auto FILE_ERR_FILE_NOT_FOUND = 2;
+constexpr long FILE_DEFAULT_MAX_CHILDREN = 32;
 
 using FileSize = uint32_t;
 using FileOffset = uint32_t;
@@ -113,6 +114,12 @@ public:
 public:
     static BOOL logFileTraffic;
     static DWORD lastError;
+
+    static BOOL fileExists(char* filepath)
+    {
+        DWORD file_attrs = GetFileAttributesA(filepath);
+        return file_attrs != INVALID_FILE_ATTRIBUTES;
+    }
 public:
     static File* fromPtr(void* p) noexcept {
         return reinterpret_cast<File*>(p);
@@ -216,6 +223,9 @@ public:
 
     // public: long __thiscall File::writeString(char *)
     long writeString(char* string);
+
+    // public: long FUN_00645f10()
+    long readLong();
 
 protected:
     template<typename T>
