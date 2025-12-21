@@ -101,7 +101,7 @@ static constexpr uintptr_t va_aPort_init3 = 0x0060c6e0;
 #pragma endregion
 
 #pragma region Globals
-static aPort** g_screenPort_ptr = reinterpret_cast<aPort**>(MCX_RUNTIME_ADDR(va_aPort_screenPort));
+static aPort*& g_screenPort = *reinterpret_cast<aPort**>(MCX_RUNTIME_ADDR(va_aPort_screenPort));
 #pragma endregion
 
 #pragma region Layout asserts

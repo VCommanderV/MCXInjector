@@ -141,7 +141,7 @@ long aPort::init(int32_t width, int32_t height)
     bitmap_->width_zero_based = width - 1;
     bitmap_->height_zero_based = height - 1;
 
-    if (this != *g_screenPort_ptr)
+    if (this != g_screenPort)
     {
         auto buf = reinterpret_cast<uint8_t*>(gui_heap->malloc(width * height));
         bitmap_->pixels = buf;
@@ -329,10 +329,10 @@ long aPort::init3(char* art_filename)
 
 long aPort::resize(int32_t new_width, int32_t new_height)
 {
-    aPort* screenPort = *g_screenPort_ptr;
+    aPort* screen_port = g_screenPort;
     UserHeap* gui_heap = mcx::heap::GetGuiHeap();
 
-    if (this != screenPort)
+    if (this != screen_port)
     {
         if (this->bitmap->pixels != nullptr)
         {

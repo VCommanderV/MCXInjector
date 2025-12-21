@@ -5,6 +5,13 @@
 #include "mcx/gui/a_port.hpp"
 #include "mcx/lib/vfx.hpp"
 
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <objbase.h>   // or <objectbase.h>?
+
+#define DIRECTDRAW_VERSION 0x0700
+#include <ddraw.h>
+
 #ifndef ENABLE_LOG_AOBJECT
 #define ENABLE_LOG_AOBJECT 0
 #endif
@@ -15,7 +22,25 @@
 
 static constexpr auto MAX_CHILDREN = 255;
 
-class aEvent;
+class aObject;
+
+class aEvent
+{
+public:
+    uint8_t event_id;
+    aObject* sender;
+    int32_t mouse_x;
+    int32_t mouse_y;
+    uint8_t mouse_left;
+    uint8_t mouse_right;
+    uint8_t special_flag;
+    uint8_t alt_pressed;
+    uint8_t ctrl_pressed;
+    uint8_t shift_pressed;
+    uint8_t orig_mask;
+};
+
+static constexpr uint8_t EVT_MOUSE_DOWN = 0x1;
 
 using event_routine_t = void(__cdecl*)(class aObject*, aEvent*);
 using paint_routine_t = void(__cdecl*)(class aObject*);
@@ -29,6 +54,7 @@ enum aObjectState
 
 class aObject;
 class aAnimation;
+class aTimeManager;
 
 struct aObject_vtable
 {
@@ -45,7 +71,7 @@ struct aObject_vtable
     void(__thiscall* addChild)(aObject*, aObject*);
     void(__thiscall* removeChild)(aObject*, aObject*);
     void(__thiscall* setParent)(aObject*, aObject*);
-    void(__thiscall* numberOfChildren)();
+    int32_t(__thiscall* numberOfChildren)(aObject*);
     long(__thiscall* globalX)(aObject*);
     long(__thiscall* globalY)(aObject*);
     void(__thiscall* draw)(aObject*);
@@ -53,7 +79,7 @@ struct aObject_vtable
     BOOL(__thiscall* pointInside)(aObject*, int32_t, int32_t);
     BOOL(__thiscall* rectIntersect)(aObject*, int32_t, int32_t, int32_t, int32_t);
     void(__thiscall* rectIntersect2)();
-    void(__thiscall* handleEvent)();
+    void(__thiscall* handleEvent)(aObject*, aEvent* evt);
     void(__thiscall* setBackground)();
     void(__thiscall* setBackground2)();
     void(__thiscall* setAnimation)();
@@ -64,7 +90,7 @@ struct aObject_vtable
     void(__thiscall* icon)();
     void(__thiscall* setDepth)();
     void(__thiscall* children)();
-    void(__thiscall* FUN_0060ef20)();
+    void(__thiscall* FUN_0060ef20)(aObject*, int32_t);
     void(__thiscall* foremostChild)();
     void(__thiscall* depth)();
     void(__thiscall* child)();
@@ -111,6 +137,16 @@ struct aObject_vtable
     void(__thiscall* getDropTarget)();
 };
 
+typedef aObject_vtable aSystem_vtable;
+typedef BITMAPINFOHEADER BMI;
+
+struct LogicalPalette {
+    WORD palVersion;
+    WORD palNumEntries;
+    PALETTEENTRY palPalEntry[256];  // Full 256 entries
+};
+
+#pragma region aObject
 #pragma pack(push, 4)
 class aObject {
 # pragma region Fields
@@ -329,6 +365,430 @@ public:
     void paint();
 };
 #pragma pack(pop)
+#pragma endregion
+
+#pragma region aSystem
+class aSystem : aObject
+{
+#pragma region Fields
+public:
+    IDirectDraw2* ddraw2;                      // 0x0
+    IDirectDraw* ddraw1;                       // 0x4
+    IDirectDrawSurface* ddraw_surf1;           // 0x4b4
+    IDirectDrawSurface* ddraw_attached_surf;   // 0x4b8
+    int32_t field_0x4c0; // 0x4bc
+    IDirectDrawPalette* ddraw_palette;         // 0x4c0
+    int32_t field_0x4c4; // 0x4c4
+    int32_t field_0x4c8; // 0x4c8
+    int32_t field_0x4cc; // 0x4cc
+    int32_t field_0x4d0; // 0x4d0
+    int32_t field_0x4d4; // 0x4d4
+    int32_t field_0x4d8; // 0x4d8
+    int32_t field_0x4dc; // 0x4dc
+    int32_t field_0x4e0; // 0x4e0
+    int32_t field_0x4e4; // 0x4e4
+    int32_t field_0x4e8; // 0x4e8
+    int32_t field_0x4ec; // 0x4ec
+    int32_t field_0x4f0; // 0x4f0
+    int32_t field_0x4f4; // 0x4f4
+    int32_t field_0x4f8; // 0x4f8
+    int32_t field_0x4fc; // 0x4fc
+    int32_t field_0x500; // 0x500
+    int32_t field_0x504; // 0x504
+    int32_t field_0x508; // 0x508
+    int32_t field_0x50c; // 0x50c
+    int32_t field_0x510; // 0x510
+    int32_t field_0x514; // 0x514
+    int32_t field_0x518; // 0x518
+    int32_t field_0x51c; // 0x51c
+    int32_t field_0x520; // 0x520
+    int32_t field_0x524; // 0x524
+    int32_t field_0x528; // 0x528
+    int32_t field_0x52c; // 0x52c
+    int32_t field_0x530; // 0x530
+    int32_t field_0x534; // 0x534
+    int32_t field_0x538; // 0x538
+    int32_t field_0x53c; // 0x53c
+    int32_t field_0x540; // 0x540
+    int32_t field_0x544; // 0x544
+    int32_t field_0x548; // 0x548
+    int32_t field_0x54c; // 0x54c
+    int32_t field_0x550; // 0x550
+    int32_t field_0x554; // 0x554
+    int32_t field_0x558; // 0x558
+    int32_t field_0x55c; // 0x55c
+    int32_t field_0x560; // 0x560
+    int32_t field_0x564; // 0x564
+    int32_t field_0x568; // 0x568
+    int32_t field_0x56c; // 0x56c
+    int32_t field_0x570; // 0x570
+    int32_t field_0x574; // 0x574
+    int32_t field_0x578; // 0x578
+    int32_t field_0x57c; // 0x57c
+    int32_t field_0x580; // 0x580
+    int32_t field_0x584; // 0x584
+    int32_t field_0x588; // 0x588
+    int32_t field_0x58c; // 0x58c
+    int32_t field_0x590; // 0x590
+    int32_t field_0x594; // 0x594
+    int32_t field_0x598; // 0x598
+    int32_t field_0x59c; // 0x59c
+    int32_t field_0x5a0; // 0x5a0
+    int32_t field_0x5a4; // 0x5a4
+    int32_t field_0x5a8; // 0x5a8
+    int32_t field_0x5ac; // 0x5ac
+    int32_t field_0x5b0; // 0x5b0
+    int32_t field_0x5b4; // 0x5b4
+    int32_t field_0x5b8; // 0x5b8
+    int32_t field_0x5bc; // 0x5bc
+    int32_t field_0x5c0; // 0x5c0
+    int32_t field_0x5c4; // 0x5c4
+    int32_t field_0x5c8; // 0x5c8
+    int32_t field_0x5cc; // 0x5cc
+    int32_t field_0x5d0; // 0x5d0
+    int32_t field_0x5d4; // 0x5d4
+    int32_t field_0x5d8; // 0x5d8
+    int32_t field_0x5dc; // 0x5dc
+    int32_t field_0x5e0; // 0x5e0
+    int32_t field_0x5e4; // 0x5e4
+    int32_t field_0x5e8; // 0x5e8
+    int32_t field_0x5ec; // 0x5ec
+    int32_t field_0x5f0; // 0x5f0
+    int32_t field_0x5f4; // 0x5f4
+    int32_t field_0x5f8; // 0x5f8
+    int32_t field_0x5fc; // 0x5fc
+    int32_t field_0x600; // 0x600
+    int32_t field_0x604; // 0x604
+    int32_t field_0x608; // 0x608
+    int32_t field_0x60c; // 0x60c
+    int32_t field_0x610; // 0x610
+    int32_t field_0x614; // 0x614
+    int32_t field_0x618; // 0x618
+    int32_t field_0x61c; // 0x61c
+    int32_t field_0x620; // 0x620
+    int32_t field_0x624; // 0x624
+    int32_t field_0x628; // 0x628
+    int32_t field_0x62c; // 0x62c
+    int32_t field_0x630; // 0x630
+    int32_t field_0x634; // 0x634
+    int32_t field_0x638; // 0x638
+    int32_t field_0x63c; // 0x63c
+    int32_t field_0x640; // 0x640
+    int32_t field_0x644; // 0x644
+    int32_t field_0x648; // 0x648
+    int32_t field_0x64c; // 0x64c
+    int32_t field_0x650; // 0x650
+    int32_t field_0x654; // 0x654
+    int32_t field_0x658; // 0x658
+    int32_t field_0x65c; // 0x65c
+    int32_t field_0x660; // 0x660
+    int32_t field_0x664; // 0x664
+    int32_t field_0x668; // 0x668
+    int32_t field_0x66c; // 0x66c
+    int32_t field_0x670; // 0x670
+    int32_t field_0x674; // 0x674
+    int32_t field_0x678; // 0x678
+    int32_t field_0x67c; // 0x67c
+    int32_t field_0x680; // 0x680
+    int32_t field_0x684; // 0x684
+    int32_t field_0x688; // 0x688
+    int32_t field_0x68c; // 0x68c
+    int32_t field_0x690; // 0x690
+    int32_t field_0x694; // 0x694
+    int32_t field_0x698; // 0x698
+    int32_t field_0x69c; // 0x69c
+    int32_t field_0x6a0; // 0x6a0
+    int32_t field_0x6a4; // 0x6a4
+    int32_t field_0x6a8; // 0x6a8
+    int32_t field_0x6ac; // 0x6ac
+    int32_t field_0x6b0; // 0x6b0
+    int32_t field_0x6b4; // 0x6b4
+    int32_t field_0x6b8; // 0x6b8
+    int32_t field_0x6bc; // 0x6bc
+    int32_t field_0x6c0; // 0x6c0
+    int32_t field_0x6c4; // 0x6c4
+    int32_t field_0x6c8; // 0x6c8
+    int32_t field_0x6cc; // 0x6cc
+    int32_t field_0x6d0; // 0x6d0
+    int32_t field_0x6d4; // 0x6d4
+    int32_t field_0x6d8; // 0x6d8
+    int32_t field_0x6dc; // 0x6dc
+    int32_t field_0x6e0; // 0x6e0
+    int32_t field_0x6e4; // 0x6e4
+    int32_t field_0x6e8; // 0x6e8
+    int32_t field_0x6ec; // 0x6ec
+    int32_t field_0x6f0; // 0x6f0
+    int32_t field_0x6f4; // 0x6f4
+    int32_t field_0x6f8; // 0x6f8
+    int32_t field_0x6fc; // 0x6fc
+    int32_t field_0x700; // 0x700
+    int32_t field_0x704; // 0x704
+    int32_t field_0x708; // 0x708
+    int32_t field_0x70c; // 0x70c
+    int32_t field_0x710; // 0x710
+    int32_t field_0x714; // 0x714
+    int32_t field_0x718; // 0x718
+    int32_t field_0x71c; // 0x71c
+    int32_t field_0x720; // 0x720
+    int32_t field_0x724; // 0x724
+    int32_t field_0x728; // 0x728
+    int32_t field_0x72c; // 0x72c
+    int32_t field_0x730; // 0x730
+    int32_t field_0x734; // 0x734
+    int32_t field_0x738; // 0x738
+    int32_t field_0x73c; // 0x73c
+    int32_t field_0x740; // 0x740
+    int32_t field_0x744; // 0x744
+    int32_t field_0x748; // 0x748
+    int32_t field_0x74c; // 0x74c
+    int32_t field_0x750; // 0x750
+    int32_t field_0x754; // 0x754
+    int32_t field_0x758; // 0x758
+    int32_t field_0x75c; // 0x75c
+    int32_t field_0x760; // 0x760
+    int32_t field_0x764; // 0x764
+    int32_t field_0x768; // 0x768
+    int32_t field_0x76c; // 0x76c
+    int32_t field_0x770; // 0x770
+    int32_t field_0x774; // 0x774
+    int32_t field_0x778; // 0x778
+    int32_t field_0x77c; // 0x77c
+    int32_t field_0x780; // 0x780
+    int32_t field_0x784; // 0x784
+    int32_t field_0x788; // 0x788
+    int32_t field_0x78c; // 0x78c
+    int32_t field_0x790; // 0x790
+    int32_t field_0x794; // 0x794
+    int32_t field_0x798; // 0x798
+    int32_t field_0x79c; // 0x79c
+    int32_t field_0x7a0; // 0x7a0
+    int32_t field_0x7a4; // 0x7a4
+    int32_t field_0x7a8; // 0x7a8
+    int32_t field_0x7ac; // 0x7ac
+    int32_t field_0x7b0; // 0x7b0
+    int32_t field_0x7b4; // 0x7b4
+    int32_t field_0x7b8; // 0x7b8
+    int32_t field_0x7bc; // 0x7bc
+    int32_t field_0x7c0; // 0x7c0
+    int32_t field_0x7c4; // 0x7c4
+    int32_t field_0x7c8; // 0x7c8
+    int32_t field_0x7cc; // 0x7cc
+    int32_t field_0x7d0; // 0x7d0
+    int32_t field_0x7d4; // 0x7d4
+    int32_t field_0x7d8; // 0x7d8
+    int32_t field_0x7dc; // 0x7dc
+    int32_t field_0x7e0; // 0x7e0
+    int32_t field_0x7e4; // 0x7e4
+    int32_t field_0x7e8; // 0x7e8
+    int32_t field_0x7ec; // 0x7ec
+    int32_t field_0x7f0; // 0x7f0
+    int32_t field_0x7f4; // 0x7f4
+    int32_t field_0x7f8; // 0x7f8
+    int32_t field_0x7fc; // 0x7fc
+    int32_t field_0x800; // 0x800
+    int32_t field_0x804; // 0x804
+    int32_t field_0x808; // 0x808
+    int32_t field_0x80c; // 0x80c
+    int32_t field_0x810; // 0x810
+    int32_t field_0x814; // 0x814
+    int32_t field_0x818; // 0x818
+    int32_t field_0x81c; // 0x81c
+    int32_t field_0x820; // 0x820
+    int32_t field_0x824; // 0x824
+    int32_t field_0x828; // 0x828
+    int32_t field_0x82c; // 0x82c
+    int32_t field_0x830; // 0x830
+    int32_t field_0x834; // 0x834
+    int32_t field_0x838; // 0x838
+    int32_t field_0x83c; // 0x83c
+    int32_t field_0x840; // 0x840
+    int32_t field_0x844; // 0x844
+    int32_t field_0x848; // 0x848
+    int32_t field_0x84c; // 0x84c
+    int32_t field_0x850; // 0x850
+    int32_t field_0x854; // 0x854
+    int32_t field_0x858; // 0x858
+    int32_t field_0x85c; // 0x85c
+    int32_t field_0x860; // 0x860
+    int32_t field_0x864; // 0x864
+    int32_t field_0x868; // 0x868
+    int32_t field_0x86c; // 0x86c
+    int32_t field_0x870; // 0x870
+    int32_t field_0x874; // 0x874
+    int32_t field_0x878; // 0x878
+    int32_t field_0x87c; // 0x87c
+    int32_t field_0x880; // 0x880
+    int32_t field_0x884; // 0x884
+    int32_t field_0x888; // 0x888
+    int32_t field_0x88c; // 0x88c
+    int32_t field_0x890; // 0x890
+    int32_t field_0x894; // 0x894
+    int32_t field_0x898; // 0x898
+    int32_t field_0x89c; // 0x89c
+    int32_t field_0x8a0; // 0x8a0
+    int32_t field_0x8a4; // 0x8a4
+    int32_t field_0x8a8; // 0x8a8
+    int32_t field_0x8ac; // 0x8ac
+    int32_t field_0x8b0; // 0x8b0
+    int32_t field_0x8b4; // 0x8b4
+    int32_t field_0x8b8; // 0x8b8
+    int32_t field_0x8bc; // 0x8bc
+    int32_t field_0x8c0; // 0x8c0
+    int32_t field_0x8c4; // 0x8c4
+    int32_t field_0x8c8; // 0x8c8
+    int32_t field_0x8cc; // 0x8cc
+    int32_t field_0x8d0; // 0x8d0
+    int32_t field_0x8d4; // 0x8d4
+    int32_t field_0x8d8; // 0x8d8
+    int32_t field_0x8dc; // 0x8dc
+    int32_t field_0x8e0; // 0x8e0
+    int32_t field_0x8e4; // 0x8e4
+    int32_t field_0x8e8; // 0x8e8
+    int32_t field_0x8ec; // 0x8ec
+    int32_t field_0x8f0; // 0x8f0
+    int32_t field_0x8f4; // 0x8f4
+    int32_t field_0x8f8; // 0x8f8
+    int32_t field_0x8fc; // 0x8fc
+    int32_t field_0x900; // 0x900
+    int32_t field_0x904; // 0x904
+    int32_t field_0x908; // 0x908
+    HWND window_handle; // 0x90c
+    int32_t field_0x910; // 0x910
+    int32_t field_0x914; // 0x914
+    int32_t field_0x918; // 0x918
+    int32_t field_0x91c; // 0x91c
+    int32_t field_0x920; // 0x920
+    int32_t field_0x924; // 0x924
+    int32_t field_0x928; // 0x928
+    int32_t field_0x92c; // 0x92c
+    int32_t field_0x930; // 0x930
+    int32_t field_0x934; // 0x934
+    int32_t field_0x938; // 0x938
+    int32_t field_0x93c; // 0x93c
+    int32_t field_0x940; // 0x940
+    int32_t field_0x944; // 0x944
+    int32_t field_0x948; // 0x948
+    int32_t field_0x94c; // 0x94c
+    int32_t field_0x950; // 0x950
+    int32_t field_0x954; // 0x954
+    int32_t field_0x958; // 0x958
+    int32_t field_0x95c; // 0x95c
+    int32_t field_0x960; // 0x960
+    int32_t field_0x964; // 0x964
+    int32_t field_0x968; // 0x968
+    int32_t field_0x96c; // 0x96c
+    int32_t field_0x970; // 0x970
+    int32_t field_0x974; // 0x974
+    int32_t field_0x978; // 0x978
+    int32_t field_0x97c; // 0x97c
+    int32_t field_0x980; // 0x980
+    int32_t field_0x984; // 0x984
+    int32_t field_0x988; // 0x988
+    int32_t field_0x98c; // 0x98c
+    int32_t field_0x990; // 0x990
+    int32_t field_0x994; // 0x994
+    int32_t field_0x998; // 0x998
+    int32_t field_0x99c; // 0x99c
+    int32_t field_0x9a0; // 0x9a0
+    int32_t field_0x9a4; // 0x9a4
+    int32_t field_0x9a8; // 0x9a8
+    int32_t field_0x9ac; // 0x9ac
+    int32_t field_0x9b0; // 0x9b0
+    int32_t field_0x9b4; // 0x9b4
+    int32_t field_0x9b8; // 0x9b8
+    int32_t field_0x9bc; // 0x9bc
+    int32_t field_0x9c0; // 0x9c0
+    int32_t field_0x9c4; // 0x9c4
+    int32_t field_0x9c8; // 0x9c8
+    int32_t field_0x9cc; // 0x9cc
+    int32_t field_0x9d0; // 0x9d0
+    int32_t field_0x9d4; // 0x9d4
+    int32_t field_0x9d8; // 0x9d8
+    int32_t field_0x9dc; // 0x9dc
+    int32_t field_0x9e0; // 0x9e0
+    int32_t field_0x9e4; // 0x9e4
+    int32_t field_0x9e8; // 0x9e8
+    int32_t field_0x9ec; // 0x9ec
+    int32_t field_0x9f0; // 0x9f0
+    int32_t field_0x9f4; // 0x9f4
+    int32_t field_0x9f8; // 0x9f8
+    int32_t field_0x9fc; // 0x9fc
+    int32_t field_0xa00; // 0xa00
+    int32_t field_0xa04; // 0xa04
+    int32_t field_0xa08; // 0xa08
+    int32_t field_0xa0c; // 0xa0c
+    int32_t field_0xa10; // 0xa10
+    int32_t field_0xa14; // 0xa14
+    int32_t field_0xa18; // 0xa18
+    int32_t field_0xa1c; // 0xa1c
+    int32_t field_0xa20; // 0xa20
+    int32_t field_0xa24; // 0xa24
+    int32_t field_0xa28; // 0xa28
+    int32_t field_0xa2c; // 0xa2c
+    int32_t field_0xa30; // 0xa30
+    int32_t field_0xa34; // 0xa34
+    int32_t field_0xa38; // 0xa38
+    int32_t field_0xa3c; // 0xa3c
+    int32_t field_0xa40; // 0xa40
+    int32_t field_0xa44; // 0xa44
+    int32_t field_0xa48; // 0xa48
+    int32_t field_0xa4c; // 0xa4c
+    int32_t field_0xa50; // 0xa50
+    int32_t field_0xa54; // 0xa54
+    int32_t field_0xa58; // 0xa58
+    int32_t field_0xa5c; // 0xa5c
+    int32_t field_0xa60; // 0xa60
+    int32_t field_0xa64; // 0xa64
+    int32_t field_0xa68; // 0xa68
+    int32_t field_0xa6c; // 0xa6c
+    int32_t field_0xa70; // 0xa70
+    int32_t field_0xa74; // 0xa74
+    int32_t field_0xa78; // 0xa78
+    int32_t field_0xa7c; // 0xa7c
+    int32_t field_0xa80; // 0xa80
+    int32_t field_0xa84; // 0xa84
+    int32_t field_0xa88; // 0xa88
+    int32_t field_0xa8c; // 0xa8c
+    int32_t field_0xa90; // 0xa90
+    int32_t field_0xa94; // 0xa94
+    int32_t field_0xa98; // 0xa98
+    int32_t field_0xa9c; // 0xa9c
+    int32_t field_0xaa0; // 0xaa0
+    int32_t field_0xaa4; // 0xaa4
+    int32_t field_0xaa8; // 0xaa8
+    int32_t field_0xaac; // 0xaac
+    int32_t field_0xab0; // 0xab0
+    int32_t field_0xab4; // 0xab4
+    int32_t field_0xab8; // 0xab8
+    int32_t field_0xabc; // 0xabc
+    int32_t field_0xac0; // 0xac0
+    int32_t field_0xac4; // 0xac4
+    int32_t field_0xac8; // 0xac8
+    int32_t field_0xacc; // 0xacc
+    int32_t field_0xad0; // 0xad0
+    int32_t field_0xad4; // 0xad4
+    int32_t field_0xad8; // 0xad8
+    int32_t field_0xadc; // 0xadc
+    int32_t field_0xae0; // 0xae0
+    int32_t field_0xae4; // 0xae4
+    int32_t field_0xae8; // 0xae8
+    int32_t field_0xaec; // 0xaec
+    int32_t field_0xaf0; // 0xaf0
+    int32_t field_0xaf4; // 0xaf4
+    int32_t field_0xaf8; // 0xaf8
+    int32_t field_0xafc; // 0xafc
+    int32_t field_0xb00; // 0xb00
+    int32_t field_0xb04; // 0xb04
+    int32_t field_0xb08; // 0xb08
+#pragma endregion
+public:
+    // public: long __thiscall aSystem::startupDirectDraw(long,long,long)
+    long startupDirectDraw(long width, long height, long bits_per_pixel);
+
+    // public: int __thiscall aSystem::tweakDDPalette(int,int,struct VFX_RGB *,int)
+    int tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, int param_4);
+};
+#pragma endregion
 
 #pragma region VAs
 static constexpr uintptr_t va_aObject_ctor = 0x0060e440;
@@ -412,6 +872,52 @@ static constexpr uintptr_t va_aObject_animation = 0x0060fea0;
 static constexpr uintptr_t va_aObject_addChild = 0x0060f1f0;
 static constexpr uintptr_t va_aObject_vftable = 0x0077add4;
 static constexpr uintptr_t va_aObject_vector_deleting_destructor = 0x0060e4a0;
+
+static constexpr uintptr_t va_aSystem_vftable = 0x0077af08;
+static constexpr uintptr_t va_aSystem_startupDirectDraw = 0x0060db20;
+static constexpr uintptr_t va_aSystem_tweakDDPalette = 0x00614a70;
+
+static constexpr uintptr_t va_bmi = 0x007a9f90;
+static constexpr uintptr_t va_aRedrawScreen = 0x00610410;
+static constexpr uintptr_t va_screenWindow = 0x007ab154;
+static constexpr uintptr_t va_logicalPalette = 0x007aa3c0;
+static constexpr uintptr_t va_DesktopDC = 0x007aae7c;
+static constexpr uintptr_t va_OffscreenBufferDC = 0x007aae70;
+static constexpr uintptr_t va_hPalette = 0x007aae84;
+static constexpr uintptr_t va_holdPalette = 0x007aa990;
+static constexpr uintptr_t va_OffScreenhDIBSection = 0x007aae74;
+static constexpr uintptr_t va_OffScreenhOldBitmap = 0x007aadf0;
+
+static constexpr uintptr_t va_FullScreen = 0x007ab0e4;
+static constexpr uintptr_t va_Width = 0x00789f70;
+static constexpr uintptr_t va_Height = 0x00789f74;
+static constexpr uintptr_t va_DAT_007ab0d4 = 0x007ab0d4;
+
+static constexpr uintptr_t va_DAT_007ab104 = 0x007ab104;
+static constexpr uintptr_t va_DAT_007ab108 = 0x007ab108;
+static constexpr uintptr_t va_SystemPalette = 0x007aa3c4; // va_DAT_007aa3c4
+#pragma endregion
+
+#pragma region Globals
+static BOOL& g_FullScreen = *reinterpret_cast<BOOL*>(MCX_RUNTIME_ADDR(va_FullScreen));
+static int32_t& g_Width = *reinterpret_cast<int32_t*>(MCX_RUNTIME_ADDR(va_Width));
+static int32_t& g_Height = *reinterpret_cast<int32_t*>(MCX_RUNTIME_ADDR(va_Height));
+
+static aObject*& g_screenWindow = *reinterpret_cast<aObject**>(MCX_RUNTIME_ADDR(va_screenWindow));
+static BMI& g_bmi = *reinterpret_cast<BMI*>(MCX_RUNTIME_ADDR(va_bmi));
+static LogicalPalette& g_logicalPalette = *reinterpret_cast<LogicalPalette*>(MCX_RUNTIME_ADDR(va_logicalPalette));
+static HDC& g_DesktopDC = *reinterpret_cast<HDC*>(MCX_RUNTIME_ADDR(va_DesktopDC));
+static HDC& g_OffscreenBufferDC = *reinterpret_cast<HDC*>(MCX_RUNTIME_ADDR(va_OffscreenBufferDC));
+static HPALETTE& g_hPalette = *reinterpret_cast<HPALETTE*>(MCX_RUNTIME_ADDR(va_hPalette));
+static HPALETTE& g_holdPalette = *reinterpret_cast<HPALETTE*>(MCX_RUNTIME_ADDR(va_holdPalette));
+static HBITMAP& g_OffScreenhDIBSection = *reinterpret_cast<HBITMAP*>(MCX_RUNTIME_ADDR(va_OffScreenhDIBSection));
+static HBITMAP& g_OffScreenhOldBitmap = *reinterpret_cast<HBITMAP*>(MCX_RUNTIME_ADDR(va_OffScreenhOldBitmap));
+static PALETTEENTRY(&g_SystemPalette)[256] =*reinterpret_cast<PALETTEENTRY(*)[256]>(MCX_RUNTIME_ADDR(va_SystemPalette));
+static void*& g_DIBBits = *reinterpret_cast<void**>(MCX_RUNTIME_ADDR(va_DAT_007ab104));
+static uint32_t& g_DAT_007ab108 = *reinterpret_cast<uint32_t*>(MCX_RUNTIME_ADDR(va_DAT_007ab108));
+static int32_t& g_DAT_007ab0d4 = *reinterpret_cast<int32_t*>(MCX_RUNTIME_ADDR(va_DAT_007ab0d4));
+
+static void __cdecl aRedrawScreen();
 #pragma endregion
 
 #pragma region Layout asserts

@@ -46,6 +46,12 @@ struct shape_header
     long field_0x10;
     long field_0x14;
 };
+
+struct VFX_RGB {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+};
 #pragma pack(pop)
 
 long __cdecl _VFX_GIF_resolution(uint8_t* gif_buf);

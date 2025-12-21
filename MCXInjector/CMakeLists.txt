@@ -21,6 +21,10 @@ target_include_directories(MCXInjector PRIVATE
 
 target_link_libraries(MCXInjector PRIVATE 
     Detours
+    # Direct Draw
+    ddraw
+    dxguid
+    # Abseil logging
     absl::log
     absl::log_initialize
 )

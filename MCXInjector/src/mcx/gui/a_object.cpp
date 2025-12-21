@@ -5,6 +5,7 @@
 #include "mcx/gui/a_animation.hpp"
 #include "mcx/gui/a_object.hpp"
 
+#pragma region aObject
 MCXI_CTOR_HOOK Hook_aObject_ctor(aObject* this_ptr, void* unused_edx)
 {
     this_ptr->vtable = (aObject_vtable*)MCX_RUNTIME_ADDR(va_aObject_vftable);
@@ -97,7 +98,7 @@ long aObject::init(long x, long y, long width, long height, char* param_5)
         return 3;
     }
 
-    aPort* screenPort = *g_screenPort_ptr;
+    aPort* screenPort = g_screenPort;
     this->display_port->window = screenPort->bitmap;
     this->display_port->x0 = x;
     this->display_port->y0 = y;   
@@ -862,11 +863,6 @@ void aObject::setEventRoutine(event_routine_t new_event_routine)
     this->event_routine = new_event_routine;
 }
 
-void aObject::handleEvent(aEvent* evt)
-{
-
-}
-
 long aObject::setIcon(char* filename)
 {
     if (this->icon != nullptr)
@@ -899,9 +895,315 @@ void aObject::paint()
     }
 }
 
+static void __cdecl aRedrawScreen()
+{
+    aObject* screen_window = g_screenWindow;
+    int32_t num_children = screen_window->vtable->numberOfChildren(screen_window);
+
+    if (num_children <= 0)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < num_children; i++)
+    {
+        aObject* child = screen_window->child(i);
+        child->vtable->draw(child);
+    }
+}
+
+void aObject::handleEvent(aEvent* evt)
+{
+    if (evt->event_id == 0x1)
+    {
+        if (this->parent != nullptr)
+        {
+            this->vtable->FUN_0060ef20(this, 0);
+            aRedrawScreen();
+        }
+    }
+    else if (evt->event_id == 0x12 && this->children_num > 0)
+    {
+        // broadcast to children?
+        for (size_t i = 0; i < this->children_num; i++)
+        {
+            aObject* child = this->children[i];
+            child->vtable->handleEvent(child, evt);
+        }
+    }
+
+    // TODO: requires aSystem
+    if (this->state == ICONIZED)
+    {
+        switch (evt->event_id)
+        {
+        case 0x1:
+            break;
+        case 0x4:
+            break;
+        case 0x7:
+            break;
+        case 0x10:
+            break;
+        default:
+            break;
+        }
+    }
+}
+#pragma endregion
+
+#pragma region aSystem
+long aSystem::startupDirectDraw(long width, long height, long bits_per_pixel)
+{
+    IDirectDraw** pp_ddraw = &this->ddraw1;
+    IDirectDraw2** pp_ddraw2 = &this->ddraw2;
+
+    *pp_ddraw = nullptr;
+    *pp_ddraw2 = nullptr;
+
+    long ddraw_create_res = DirectDrawCreate(nullptr, pp_ddraw, nullptr);
+
+    if (ddraw_create_res != S_OK)
+    {
+        Fatal(ddraw_create_res, (char*)"Cannot initialize DirectDraw.", nullptr);
+    }
+
+    if (this->ddraw1->QueryInterface(IID_IDirectDraw2, (void**)pp_ddraw2) != S_OK)
+    {
+        Fatal(ddraw_create_res, (char*)"Cannot initialize DirectDraw2.", nullptr);
+    }
+
+    IDirectDraw2* ddraw = *pp_ddraw2;
+
+    // Retrieve hardware and Hardware Emulation Layer (HEL) capabilities
+    DDCAPS hal_caps;
+    DDCAPS hel_caps;
+    memset(&hal_caps, 0, sizeof(DDCAPS));
+    memset(&hel_caps, 0, sizeof(DDCAPS));
+    hal_caps.dwSize = sizeof(DDCAPS);
+    hel_caps.dwSize = sizeof(DDCAPS);
+    ddraw->GetCaps(&hal_caps, &hel_caps);
+
+    // Setup bitmap infos
+    BMI* bmi = &g_bmi;
+    memset(bmi, 0, sizeof(BMI));
+    bmi->biSize = sizeof(BMI);
+    bmi->biWidth = width;
+    bmi->biHeight = -height; // Top down DIB
+    bmi->biPlanes = 1;
+    bmi->biBitCount = 8; // 8-bit palettized
+    bmi->biCompression = BI_RGB;
+
+    // Initialize Logical palette
+    LogicalPalette* logical_palette = &g_logicalPalette;
+    assert(sizeof(LogicalPalette) == (sizeof(LOGPALETTE) + 255 * sizeof(PALETTEENTRY)));
+    memset(logical_palette, 0, sizeof(LOGPALETTE) + 255 * sizeof(PALETTEENTRY)); // sizeof(LogicalPalette)
+    logical_palette->palNumEntries = 256;
+    logical_palette->palVersion = 0x300; // Windows palette version?
+
+    g_DesktopDC = GetDC(this->window_handle);
+    HDC desktop_dc = g_DesktopDC;
+    auto system_palette = g_SystemPalette;
+    GetSystemPaletteEntries(desktop_dc, 0, 256, system_palette);
+
+    for (size_t i = 0; i < 256; i++)
+    {
+        logical_palette->palPalEntry[i].peRed = system_palette[i].peRed;
+        logical_palette->palPalEntry[i].peGreen = system_palette[i].peGreen;
+        logical_palette->palPalEntry[i].peBlue = system_palette[i].peBlue;
+        logical_palette->palPalEntry[i].peFlags = PC_NONE;
+
+        if (i >= 10 && i <= 245)
+        {
+            system_palette[i].peFlags = PC_NOCOLLAPSE;
+        }
+        else 
+        {
+            system_palette[i].peFlags = PC_NONE;
+        }
+    }
+
+    g_hPalette = CreatePalette((LOGPALETTE*)logical_palette);
+    g_holdPalette = SelectPalette(desktop_dc, g_hPalette, FALSE);
+    RealizePalette(desktop_dc);
+
+    g_OffscreenBufferDC = CreateCompatibleDC(desktop_dc);
+    g_OffScreenhDIBSection = CreateDIBSection(
+        g_OffscreenBufferDC, (BITMAPINFO*)bmi, DIB_RGB_COLORS, &g_DIBBits, 0, 0
+    );
+
+    g_OffScreenhOldBitmap = (HBITMAP)SelectObject(g_OffscreenBufferDC, g_OffScreenhDIBSection);
+    SetStretchBltMode(g_OffscreenBufferDC, COLORONCOLOR);
+
+    IDirectDrawSurface** pp_ddraw_surf1 = &this->ddraw_surf1;
+    IDirectDrawSurface** pp_ddraw_attached_surf = &this->ddraw_attached_surf;
+    IDirectDrawPalette** pp_ddraw_palette = &this->ddraw_palette;
+    *pp_ddraw_surf1 = nullptr;
+    *pp_ddraw_attached_surf = nullptr;
+    *pp_ddraw_palette = nullptr;
+
+    g_Width = width;
+    g_Height = height;
+
+    HRESULT res = DD_OK;
+
+    // TODO: test in fullscreen
+    g_DAT_007ab0d4 = 0;
+    if (g_FullScreen != FALSE)
+    {
+        res = ddraw->SetCooperativeLevel(this->window_handle, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN | DDSCL_ALLOWREBOOT);
+        
+        if (res != DD_OK)
+        {
+            Fatal(res, (char*) " Unable to Set Exclusive Mode ", nullptr);
+        }
+        
+        ShowWindow(this->window_handle, SW_SHOW);
+
+        res = ddraw->SetDisplayMode(width, height, bits_per_pixel, 0, 0);
+
+        while (res == DDERR_WASSTILLDRAWING)
+        {
+            res = ddraw->SetDisplayMode(width, height, bits_per_pixel, 0, 0);
+        }
+
+        if (res != DD_OK)
+        {
+            Fatal(res, (char*)" Unable to Set Display Mode ", nullptr);
+        }
+
+        DDSURFACEDESC surf_desc;
+        memset(&surf_desc, 0, sizeof(DDSURFACEDESC));
+        surf_desc.dwSize = sizeof(DDSURFACEDESC);
+        surf_desc.dwFlags = DDSD_BACKBUFFERCOUNT | DDSD_CAPS;
+        surf_desc.dwBackBufferCount = 2;
+
+        assert(surf_desc.dwFlags == 33);
+
+        // Fullscreen primary surface with flipping (front + back buffers) stored in video memory
+        surf_desc.ddsCaps.dwCaps = 
+            DDSCAPS_PRIMARYSURFACE |
+            DDSCAPS_FLIP |
+            DDSCAPS_COMPLEX |
+            DDSCAPS_VIDEOMEMORY;
+
+        assert(surf_desc.ddsCaps.dwCaps == 16920);
+
+        int fallback = 2;
+
+        res = this->ddraw2->CreateSurface(&surf_desc, pp_ddraw_surf1, 0);
+
+        if (res != DD_OK)
+        {
+            fallback = 1;
+            surf_desc.dwBackBufferCount = 1;
+            res = this->ddraw2->CreateSurface(&surf_desc, pp_ddraw_surf1, 0);
+
+            if (res != DD_OK)
+            {
+                fallback = 0;
+                surf_desc.dwBackBufferCount = 0;
+                surf_desc.dwFlags = DDSD_CAPS;
+                surf_desc.ddsCaps.dwCaps = DDSCAPS_VIDEOMEMORY | DDSCAPS_PRIMARYSURFACE;
+                assert(surf_desc.ddsCaps.dwCaps == 16896);
+
+                res = this->ddraw2->CreateSurface(&surf_desc, pp_ddraw_surf1, 0);
+
+                if (res != DD_OK)
+                {
+
+                    surf_desc.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
+                    res = this->ddraw2->CreateSurface(&surf_desc, pp_ddraw_surf1, 0);
+
+                    if (res != DD_OK)
+                    {
+                        Fatal(res, (char*)"Unable to Create Primary Surface", nullptr);
+                    }
+                }
+            }
+        }
+        
+        g_DAT_007ab0d4 = fallback;
+
+        if (fallback != 0)
+        {
+            DDSCAPS ddcaps;
+            memset(&ddcaps, 0, sizeof(DDSCAPS));
+            ddcaps.dwCaps = DDSCAPS_BACKBUFFER;
+            this->ddraw_surf1->GetAttachedSurface(&ddcaps, pp_ddraw_attached_surf);
+        }
+
+        if (bits_per_pixel != 8)
+        {
+            g_DAT_007ab108 = 1;
+            return 0;
+        }
+
+        res = this->ddraw2->CreatePalette(DDPCAPS_8BIT, system_palette, pp_ddraw_palette, 0);
+
+        if (res != DD_OK)
+        {
+            Fatal(res, (char*)" Unable to Create Primary Palette ", nullptr);
+        }
+
+        res = this->ddraw_surf1->SetPalette(*pp_ddraw_palette);
+
+        if (res == DDERR_SURFACELOST)
+        {
+            this->ddraw_surf1->Restore();
+            res = this->ddraw_surf1->SetPalette(*pp_ddraw_palette);
+        }
+
+        if (res != DD_OK)
+        {
+            Fatal(res, (char*)" Unable to Attach Palette to Primary Surface ", nullptr);
+        }
+    }
+
+    g_DAT_007ab108 = 1;
+    return 0;
+}
+
+int aSystem::tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, int param_4)
+{
+    if (g_FullScreen != FALSE)
+    { 
+        assert(this->ddraw_palette != nullptr);
+        assert(this->ddraw_surf1 != nullptr);
+
+        DDSURFACEDESC desc{};
+        desc.dwSize = sizeof(desc);
+        HRESULT hr = this->ddraw_attached_surf->GetSurfaceDesc(&desc);
+        assert(hr == DD_OK);
+
+        assert(pal_first_entry >= 0);
+        assert(pal_entries_to_change > 0);
+        assert(pal_first_entry + pal_entries_to_change <= 256);
+
+        HOOK_DLOGF(AOBJECT, INFO, "SetEntries palette=%p first=%d count=%d",
+            this->ddraw_palette,
+            pal_first_entry,
+            pal_entries_to_change);
+
+        DWORD pcaps = 0;
+        this->ddraw_palette->GetCaps(&pcaps);
+        auto log_palette = g_logicalPalette.palPalEntry;
+        DWORD num_e = g_logicalPalette.palNumEntries;
+        for (size_t i = 0; i < num_e; i++)
+        {
+            PALETTEENTRY pe = log_palette[i];
+            HOOK_DLOGF(AOBJECT, INFO, "LogcalPalette[%d] = (%d,%d,%d,%d)", i, pe.peRed, pe.peGreen, pe.peBlue, pe.peFlags);
+        }
+    }
+    auto orig = reinterpret_cast<int(__thiscall*)(aSystem*, int, int, VFX_RGB*, int)>(GetPatchedFuncOrigFromVA((void*)va_aSystem_tweakDDPalette));
+    return orig(this, pal_first_entry, pal_entries_to_change, pal, param_4);
+}
+#pragma endregion
+
 static AutoFuncPatchRegister reg_aObject{
     "aObject",
     {
+        { (void*)va_aRedrawScreen, (void*)aRedrawScreen },
         { (void*)va_aObject_ctor, (void*)Hook_aObject_ctor },
         { (void*)va_aObject_init, GetMemberPtr(&aObject::init)},
         { (void*)va_aObject_x, GetMemberPtr(&aObject::getX) },
@@ -953,5 +1255,13 @@ static AutoFuncPatchRegister reg_aObject{
         { (void*)va_aObject_setEventRoutine, GetMemberPtr(&aObject::setEventRoutine)},
         { (void*)va_aObject_setIcon, GetMemberPtr(&aObject::setIcon)},
         { (void*)va_aObject_paint, GetMemberPtr(&aObject::paint)},
+    }
+};
+
+static AutoFuncPatchRegister reg_aSystem{
+    "aSystem",
+    {
+        { (void*)va_aSystem_startupDirectDraw, GetMemberPtr(&aSystem::startupDirectDraw)},
+        { (void*)va_aSystem_tweakDDPalette, GetMemberPtr(&aSystem::tweakDDPalette)},
     }
 };
