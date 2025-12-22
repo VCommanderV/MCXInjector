@@ -8,11 +8,11 @@ static constexpr uintptr_t va_GeneralMsg = 0x006440b0;
 
 static constexpr uintptr_t va_GlobalLastError = 0x007d8f9c;
 
-static DWORD* g_LastError = reinterpret_cast<DWORD*>(MCX_RUNTIME_ADDR(va_GlobalLastError));
+OBJ_REF(DWORD, g_LastError, va_GlobalLastError);
 
 static void SetGlobalLastError(DWORD last_error)
 {
-	*g_LastError = last_error;
+	g_LastError = last_error;
 }
 
 void ErrorHandler(unsigned int err, char* err_msg, char* undefined);

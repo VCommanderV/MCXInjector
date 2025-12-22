@@ -415,7 +415,7 @@ void aObject::display()
         }
         else {
             // explicitly hidden, check if still intersects application window
-            aObject* application = mcx::GetApplication(); // TODO: it's aSystem
+            aObject* application = g_application; // TODO: it's aSystem
             int32_t app_width = application->vtable->getWidth(application);
             int32_t app_height = application->vtable->getHeight(application);
             int intersects = this->vtable->rectIntersect(this, 0, 0, app_width, app_height);
@@ -568,7 +568,7 @@ void aObject::HideMe(BOOL hide)
         case DIRECTION_RIGHT:
             {
                 int32_t global_x = this->vtable->globalX(this);
-                aObject* application = mcx::GetApplication();
+                aObject* application = g_application;
                 int32_t app_width = application->vtable->getWidth(application);
                 this->animation_offset = app_width - global_x;
                 this->hidden = hide;
@@ -577,7 +577,7 @@ void aObject::HideMe(BOOL hide)
         case DIRECTION_DOWN:
             {
                 int32_t global_y = this->vtable->globalY(this);
-                aObject* application = mcx::GetApplication();
+                aObject* application = g_application;
                 int32_t app_height = application->vtable->getHeight(application);
                 this->animation_offset = app_height - global_y;
                 this->hidden = hide;

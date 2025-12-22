@@ -1,0 +1,3 @@
+#define PTR_REF(type, name, addr)
+#define OBJ_REF(type, name, addr)
+#define ARR_REF(type, size, name, addr)

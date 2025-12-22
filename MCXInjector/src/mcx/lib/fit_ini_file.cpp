@@ -75,7 +75,7 @@ long FitIniFile::afterOpen()
 
     uint32_t blocks_num = this->countBlocks();
     this->num_blocks = blocks_num;
-    UserHeap* system_heap = *g_systemHeap_ptr;
+    UserHeap* system_heap = g_systemHeap;
 
     FitIniBlock* blocks_ = mcx::heap::adaptive_malloc<FitIniBlock>(system_heap, blocks_num * sizeof(FitIniBlock));
 
@@ -165,7 +165,7 @@ void FitIniFile::atClose()
         this->write2(line_buf, strlen(line_buf_) - 1);
     }
 
-    UserHeap* system_heap = *g_systemHeap_ptr;
+    UserHeap* system_heap = g_systemHeap;
     mcx::heap::adaptive_free(system_heap, this->blocks);
     this->blocks = nullptr;
 }

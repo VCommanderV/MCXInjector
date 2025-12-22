@@ -28,7 +28,7 @@ PacketFile::PacketFile()
 
 void PacketFile::clear()
 {
-    UserHeap* system_heap = mcx::heap::GetSystemHeap();
+    UserHeap* system_heap = g_systemHeap;
     this->current_packet = -1;
     this->packets_num = 0;
     this->packet_offset = 0;

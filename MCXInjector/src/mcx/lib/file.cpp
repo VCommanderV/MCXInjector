@@ -31,12 +31,12 @@ MCXI_CTOR_HOOK Hook_File_ctor(File* this_ptr, void* unused_edx)
 
 static __forceinline void* __cdecl Hook_File_new(size_t size)
 {
-    return mcx::heap::adaptive_malloc<void>(*g_systemHeap_ptr, size);
+    return mcx::heap::adaptive_malloc<void>(g_systemHeap, size);
 }
 
 static void __forceinline __cdecl Hook_File_delete(void* ptr)
 {
-    mcx::heap::adaptive_free<void>(*g_systemHeap_ptr, ptr);
+    mcx::heap::adaptive_free<void>(g_systemHeap, ptr);
 }
 
 #pragma warning(disable:26495, justification : "Initialization happens in Hook_File_ctor" )
@@ -66,7 +66,7 @@ long File::open(char* filename, FileMode mode, long max_children)
 {
     HOOK_DLOGF(BASEFILE, INFO, "File::open(%s, %d, %d)", filename, mode, max_children);
 
-    UserHeap* system_heap = *g_systemHeap_ptr;
+    UserHeap* system_heap = g_systemHeap;
 
     auto filename_len = strnlen_s(filename, MAX_FILENAME_SIZE) + 1;
 
@@ -236,7 +236,7 @@ long File::open2(File* new_parent, FileSize file_size, long children_num)
         return res;
     }
 
-    UserHeap* system_heap = *g_systemHeap_ptr;
+    UserHeap* system_heap = g_systemHeap;
 
     if (children_num == -1)
     {
@@ -307,7 +307,7 @@ void File::close()
 {
     HOOK_DLOGF(BASEFILE, INFO, "File::close() this=%p filename=%s max_children=%d", this, this->file_name, this->max_children);
 
-    UserHeap* system_heap = *g_systemHeap_ptr;
+    UserHeap* system_heap = g_systemHeap;
 
     if (this->parent == nullptr)
     {
@@ -508,34 +508,34 @@ long File::seek(long offset, long seek_orig)
         {
             if (this->parent == nullptr)
             {
-                *g_newPosition = SetFilePointer(this->file_handle, offset, (PLONG)0x0, seek_orig);
+                g_newPosition = SetFilePointer(this->file_handle, offset, (PLONG)0x0, seek_orig);
             }
             else if (seek_orig == SEEK_SET) {
                 DWORD new_pos = SetFilePointer(this->file_handle, this->parent_offset + offset, (PLONG)0x0, 0);
-                *g_newPosition = new_pos - this->parent_offset;
+                g_newPosition = new_pos - this->parent_offset;
             }
             else if (seek_orig == SEEK_CUR) {
                 DWORD new_pos = SetFilePointer(this->file_handle, offset, (PLONG)0x0, 1);
-                *g_newPosition = new_pos - this->parent_offset;
+                g_newPosition = new_pos - this->parent_offset;
             }
             else if (seek_orig == SEEK_END) {
                 PLONG dst_to_move_high = (PLONG)0x0;
                 FileSize length = this->getLength();
-                *g_newPosition = SetFilePointer(this->file_handle, length + this->parent_offset, dst_to_move_high, seek_orig);
+                g_newPosition = SetFilePointer(this->file_handle, length + this->parent_offset, dst_to_move_high, seek_orig);
                 DWORD new_pos = SetFilePointer(this->file_handle, offset, (PLONG)0x0, 1);
-                *g_newPosition = new_pos - this->parent_offset;
+                g_newPosition = new_pos - this->parent_offset;
             }
             else {
-                *g_newPosition = *g_newPosition - this->parent_offset;
+                g_newPosition = g_newPosition - this->parent_offset;
             }
-            if (*g_newPosition == 0xffffffff) {
+            if (g_newPosition == 0xffffffff) {
                 return ERR_BADF_INVALID_OFFSET;
             }
         }
         else 
         {
-            *g_newPosition = this->fastfile->seekFast(this->fastfile_handle, offset, seek_orig);
-            this->pos = *g_newPosition;
+            g_newPosition = this->fastfile->seekFast(this->fastfile_handle, offset, seek_orig);
+            this->pos = g_newPosition;
             return NO_ERR;
         }
     }
@@ -545,30 +545,30 @@ long File::seek(long offset, long seek_orig)
         switch (seek_orig)
         {
         case SEEK_SET:
-            *g_newPosition = offset;
+            g_newPosition = offset;
             break;
         case SEEK_CUR:
-            *g_newPosition = *g_newPosition + offset;
+            g_newPosition = g_newPosition + offset;
             break;
         case SEEK_END:
-            *g_newPosition = this->getLength() + offset;
+            g_newPosition = this->getLength() + offset;
             break;
         }
     }
     else if (seek_orig == SEEK_SET) {
-        *g_newPosition = offset;
+        g_newPosition = offset;
     }
     else if (seek_orig == SEEK_CUR) {
-        *g_newPosition = *g_newPosition + offset;
+        g_newPosition = g_newPosition + offset;
     }
     else if (seek_orig == SEEK_END) {
-        *g_newPosition = this->getLength() + this->parent_offset + offset;
+        g_newPosition = this->getLength() + this->parent_offset + offset;
     }
-    if (*g_newPosition == -1) {
+    if (g_newPosition == -1) {
         return ERR_BADF_INVALID_OFFSET;
     }
 
-    this->pos = *g_newPosition;
+    this->pos = g_newPosition;
     return NO_ERR;
 }
 

@@ -347,9 +347,10 @@ FastFile::~FastFile()
 
 FastFile* FastFile::FastFileFind(char* filename)
 {
-    FastFile*** p_fastFiles = reinterpret_cast<FastFile***>(MCX_RUNTIME_ADDR(va_FastFile_fastFiles));
-    FastFile** fastFiles = *p_fastFiles;
-    long numFastFiles = *g_numFastFiles;
+    //FastFile*** p_fastFiles = reinterpret_cast<FastFile***>(MCX_RUNTIME_ADDR(va_FastFile_fastFiles));
+    //FastFile** fastFiles = *p_fastFiles;
+    FastFile** fastFiles = g_fastFiles;
+    long numFastFiles = g_numFastFiles;
     HOOK_DLOGF(FASTFILE, INFO, "FastFile::FastFileFind(%s) numFastFiles=%d ff=%p", filename, numFastFiles, fastFiles);
 
     if (fastFiles == nullptr || numFastFiles <= 0)

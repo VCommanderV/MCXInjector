@@ -74,6 +74,26 @@ inline Fn GetTrampoline(uintptr_t virtual_addr) {
 
 #define MCX_RUNTIME_ADDR(va) (GetRuntimeAddr(static_cast<uintptr_t>(va)))
 
+// Defines a global reference to an object as: 
+//     inline #type& #name
+#define OBJ_REF(type, name, addr) \
+    inline type& name = *reinterpret_cast<type*>(GetRuntimeAddr(addr))
+
+// Defines a global reference to a ptr as: 
+//     inline #type*& #name
+#define PTR_REF(type, name, addr) \
+    inline type*& name = *reinterpret_cast<type**>(GetRuntimeAddr(addr))
+
+// Defines a global reference to an array as: 
+//     inline #type(&#name)[size]
+#define ARR_REF(type, size, name, addr) \
+    static type(&name)[size] = *reinterpret_cast<type(*)[size]>(GetRuntimeAddr(addr));
+
+// Defines a function ptr to a virtual address:
+template<typename Fn>
+inline Fn FUN_PTR(uintptr_t addr) {
+    return reinterpret_cast<Fn>(GetRuntimeAddr(addr));
+}
 
 struct VTableKey {
     void** vtable;

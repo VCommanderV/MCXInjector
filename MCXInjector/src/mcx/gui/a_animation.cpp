@@ -45,7 +45,7 @@ long aAnimation::init(char* filename)
     this->height = 0;
     this->frame_rate = DEFAULT_FRAME_RATE;
 
-    UserHeap* gui_heap = mcx::heap::GetGuiHeap();
+    UserHeap* gui_heap = g_guiHeap;
 
     if (this->shape_table != nullptr)
     {
@@ -63,8 +63,8 @@ long aAnimation::init(char* filename)
 
 long aAnimation::loadShape(char* filename)
 {
-    UserHeap* gui_heap = mcx::heap::GetGuiHeap();
-    char* art_path = mcx::GetArtPath();
+    UserHeap* gui_heap = g_guiHeap;
+    char* art_path = &g_artPath;
     char filepath_buf[128];
 
     if (this->shape_table != nullptr)
@@ -183,7 +183,7 @@ void aAnimation::reset()
 
     if (this->shape_table != nullptr)
     {
-        UserHeap* gui_heap = mcx::heap::GetGuiHeap();
+        UserHeap* gui_heap = g_guiHeap;
         gui_heap->free(this->shape_table);
         this->shape_table = nullptr;
     }

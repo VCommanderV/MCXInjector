@@ -114,8 +114,8 @@ static constexpr uintptr_t va_FastFile_numFastFiles = 0x0080a858;
 # pragma endregion
 
 # pragma region Globals
-static uint32_t* g_numFastFiles = reinterpret_cast<uint32_t*>(MCX_RUNTIME_ADDR(va_FastFile_numFastFiles));
-static FastFile** g_fastFiles = reinterpret_cast<FastFile**>(MCX_RUNTIME_ADDR(va_FastFile_fastFiles));
+OBJ_REF(uint32_t, g_numFastFiles, va_FastFile_numFastFiles);
+PTR_REF(FastFile*, g_fastFiles, va_FastFile_fastFiles);
 # pragma endregion
 
 #pragma region Layout asserts

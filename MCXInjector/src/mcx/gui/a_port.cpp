@@ -36,13 +36,13 @@ aPort::~aPort()
 
 static __forceinline void* __cdecl Hook_aPort_new(size_t size)
 {
-    UserHeap* gui_heap = *g_guiHeap_ptr;
+    UserHeap* gui_heap = g_guiHeap;
     return gui_heap->malloc(size);
 }
 
 static void __forceinline __cdecl Hook_aPort_delete(void* ptr)
 {
-    UserHeap* gui_heap = *g_guiHeap_ptr;
+    UserHeap* gui_heap = g_guiHeap;
     gui_heap->free(ptr);
 }
 
@@ -65,7 +65,7 @@ void aPort::operator delete(void* ptr)
 
 void aPort::destroy()
 {
-    UserHeap* gui_heap = mcx::heap::GetGuiHeap();
+    UserHeap* gui_heap = g_guiHeap;
     
     _window* bitmap_mem = this->bitmap;
     
@@ -119,7 +119,7 @@ long aPort::init(int32_t width, int32_t height)
     }
 
     _window* bitmap_ = this->bitmap;
-    UserHeap* gui_heap = *g_guiHeap_ptr;
+    UserHeap* gui_heap = g_guiHeap;
 
     if (bitmap_ != nullptr)
     {
@@ -180,7 +180,7 @@ long aPort::init2(long art_packet)
 {
     HOOK_DLOGF(APORT, INFO, "aPort::init2(%p, %s)", this, art_packet);
 
-    PacketFile* art_file = *g_artFile;
+    PacketFile* art_file = g_artFile;
 
     long result = art_file->seekPacket(art_packet);
 
@@ -206,7 +206,7 @@ long aPort::init2(long art_packet)
         Fatal(0xfffffffe, (char*)"Bad child file in art.pak", nullptr);
     }
 
-    UserHeap* gui_heap = mcx::heap::GetGuiHeap();
+    UserHeap* gui_heap = g_guiHeap;
     unsigned char* file_buf = reinterpret_cast<unsigned char*>(gui_heap->malloc(file_size));
 
     if (file_buf == nullptr)
@@ -251,8 +251,8 @@ long aPort::init3(char* art_filename)
     char filepath_buf[MAX_PATH - 8];
     File* file = new File();
 
-    long curr_planet = mcx::GetCurrPlanet();
-    char* art_path = mcx::GetArtPath();
+    long curr_planet = g_currPlanet;
+    char* art_path = &g_artPath;
     long open_res = -1;
 
     if (curr_planet == 1)
@@ -330,7 +330,7 @@ long aPort::init3(char* art_filename)
 long aPort::resize(int32_t new_width, int32_t new_height)
 {
     aPort* screen_port = g_screenPort;
-    UserHeap* gui_heap = mcx::heap::GetGuiHeap();
+    UserHeap* gui_heap = g_guiHeap;
 
     if (this != screen_port)
     {

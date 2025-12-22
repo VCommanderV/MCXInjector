@@ -54,7 +54,7 @@ static constexpr uintptr_t va_PacketFile_artFile = 0x007ab20c;
 #pragma endregion
 
 #pragma region Globals
-static PacketFile** g_artFile = reinterpret_cast<PacketFile**>(MCX_RUNTIME_ADDR(va_PacketFile_artFile));
+PTR_REF(PacketFile, g_artFile, va_PacketFile_artFile);
 #pragma endregion
 
 #pragma region Layout asserts

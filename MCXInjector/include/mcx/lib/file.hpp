@@ -282,13 +282,13 @@ static constexpr uintptr_t va_File_newPosition = 0x007d8fa8;
 #pragma endregion
 
 #pragma region Globals
-static long* g_newPosition = reinterpret_cast<long*>(MCX_RUNTIME_ADDR(va_File_newPosition));
-static BOOL* g_logFileTraffic = reinterpret_cast<BOOL*>(MCX_RUNTIME_ADDR(va_File_logFileTraffic));
-static File** g_fileTrafficLog_ptr = reinterpret_cast<File**>(MCX_RUNTIME_ADDR(va_File_fileTrafficLog));
-static auto createTrafficLog = reinterpret_cast<void(__cdecl*)(void)>(MCX_RUNTIME_ADDR(va_File_createTrafficLog));
+OBJ_REF(long, g_newPosition, va_File_newPosition);
+OBJ_REF(BOOL, g_logFileTraffic, va_File_logFileTraffic);
+PTR_REF(File*, g_fileTrafficLog_ptr, va_File_fileTrafficLog);
+inline auto createTrafficLog = FUN_PTR<void(__cdecl*)(void)>(va_File_createTrafficLog);
 
 #define LOG_FILE_TRAFFIC(fmt, ...) \
-if (*g_logFileTraffic != FALSE) \
+if (g_logFileTraffic != FALSE) \
 { \
     if (*g_fileTrafficLog_ptr == nullptr) \
     { \

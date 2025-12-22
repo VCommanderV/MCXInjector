@@ -12,6 +12,10 @@
 #define DIRECTDRAW_VERSION 0x0700
 #include <ddraw.h>
 
+#ifndef ENABLE_LOG_ASYSTEM
+#define ENABLE_LOG_ASYSTEM 0
+#endif
+
 #ifndef ENABLE_LOG_AOBJECT
 #define ENABLE_LOG_AOBJECT 0
 #endif
@@ -899,23 +903,22 @@ static constexpr uintptr_t va_SystemPalette = 0x007aa3c4; // va_DAT_007aa3c4
 #pragma endregion
 
 #pragma region Globals
-static BOOL& g_FullScreen = *reinterpret_cast<BOOL*>(MCX_RUNTIME_ADDR(va_FullScreen));
-static int32_t& g_Width = *reinterpret_cast<int32_t*>(MCX_RUNTIME_ADDR(va_Width));
-static int32_t& g_Height = *reinterpret_cast<int32_t*>(MCX_RUNTIME_ADDR(va_Height));
-
-static aObject*& g_screenWindow = *reinterpret_cast<aObject**>(MCX_RUNTIME_ADDR(va_screenWindow));
-static BMI& g_bmi = *reinterpret_cast<BMI*>(MCX_RUNTIME_ADDR(va_bmi));
-static LogicalPalette& g_logicalPalette = *reinterpret_cast<LogicalPalette*>(MCX_RUNTIME_ADDR(va_logicalPalette));
-static HDC& g_DesktopDC = *reinterpret_cast<HDC*>(MCX_RUNTIME_ADDR(va_DesktopDC));
-static HDC& g_OffscreenBufferDC = *reinterpret_cast<HDC*>(MCX_RUNTIME_ADDR(va_OffscreenBufferDC));
-static HPALETTE& g_hPalette = *reinterpret_cast<HPALETTE*>(MCX_RUNTIME_ADDR(va_hPalette));
-static HPALETTE& g_holdPalette = *reinterpret_cast<HPALETTE*>(MCX_RUNTIME_ADDR(va_holdPalette));
-static HBITMAP& g_OffScreenhDIBSection = *reinterpret_cast<HBITMAP*>(MCX_RUNTIME_ADDR(va_OffScreenhDIBSection));
-static HBITMAP& g_OffScreenhOldBitmap = *reinterpret_cast<HBITMAP*>(MCX_RUNTIME_ADDR(va_OffScreenhOldBitmap));
-static PALETTEENTRY(&g_SystemPalette)[256] =*reinterpret_cast<PALETTEENTRY(*)[256]>(MCX_RUNTIME_ADDR(va_SystemPalette));
-static void*& g_DIBBits = *reinterpret_cast<void**>(MCX_RUNTIME_ADDR(va_DAT_007ab104));
-static uint32_t& g_DAT_007ab108 = *reinterpret_cast<uint32_t*>(MCX_RUNTIME_ADDR(va_DAT_007ab108));
-static int32_t& g_DAT_007ab0d4 = *reinterpret_cast<int32_t*>(MCX_RUNTIME_ADDR(va_DAT_007ab0d4));
+OBJ_REF(BOOL, g_FullScreen, va_FullScreen);
+OBJ_REF(int32_t, g_Width, va_Width);
+OBJ_REF(int32_t, g_Height, va_Height);
+PTR_REF(aObject, g_screenWindow, va_screenWindow);
+OBJ_REF(BMI, g_bmi, va_bmi);
+OBJ_REF(LogicalPalette, g_logicalPalette, va_logicalPalette);
+OBJ_REF(HDC, g_DesktopDC, va_DesktopDC);
+OBJ_REF(HDC, g_OffscreenBufferDC, va_OffscreenBufferDC);
+OBJ_REF(HPALETTE, g_hPalette, va_hPalette);
+OBJ_REF(HPALETTE, g_holdPalette, va_holdPalette);
+OBJ_REF(HBITMAP, g_OffScreenhDIBSection, va_OffScreenhDIBSection);
+OBJ_REF(HBITMAP, g_OffScreenhOldBitmap, va_OffScreenhOldBitmap);
+OBJ_REF(uint32_t, g_DAT_007ab108, va_DAT_007ab108);
+OBJ_REF(int32_t, g_DAT_007ab0d4, va_DAT_007ab0d4);
+ARR_REF(PALETTEENTRY, 256, g_SystemPalette, va_SystemPalette);
+PTR_REF(void, g_DIBBits, va_DAT_007ab104);
 
 static void __cdecl aRedrawScreen();
 #pragma endregion
