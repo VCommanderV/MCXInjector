@@ -20,6 +20,10 @@
 #define ENABLE_LOG_AOBJECT 0
 #endif
 
+#ifndef ENABLE_LOG_ATIMERMANAGER
+#define ENABLE_LOG_ATIMERMANAGER 0
+#endif
+
 #ifndef NO_ERR
 #define NO_ERR	0
 #endif
@@ -34,6 +38,24 @@ static constexpr auto MAX_CHILDREN = 255;
 // See: 
 static constexpr uint32_t DDPAL_FIRST_NON_SYSTEM_COLOR = 10;
 static constexpr uint32_t DDPAL_NUM_NON_SYSTEM_COLOR = 256 - 20;
+
+#pragma pack(push, 1) // ensure no padding
+struct TGAHeader
+{
+    uint8_t  idLength;           // 0: Length of image ID field
+    uint8_t  colorMapType;       // 1: 0 = no palette, 1 = palette
+    uint8_t  imageType;          // 2: 1 = uncompressed color-mapped, 2 = true-color, 3 = grayscale
+    uint16_t colorMapFirstEntry; // 3-4: Index of first palette entry
+    uint16_t colorMapLength;     // 5-6: Number of palette entries
+    uint8_t  colorMapEntrySize;  // 7: Bits per palette entry (usually 24 or 32)
+    uint16_t xOrigin;            // 8-9: X-origin of image
+    uint16_t yOrigin;            // 10-11: Y-origin of image
+    uint16_t width;              // 12-13: Image width in pixels
+    uint16_t height;             // 14-15: Image height in pixels
+    uint8_t  pixelDepth;         // 16: Bits per pixel
+    uint8_t  imageDescriptor;    // 17: Image descriptor (alpha bits, origin)
+};
+#pragma pack(pop)
 
 class aObject;
 
@@ -57,6 +79,7 @@ static constexpr uint8_t EVT_MOUSE_DOWN = 0x1;
 
 using event_routine_t = void(__cdecl*)(class aObject*, aEvent*);
 using paint_routine_t = void(__cdecl*)(class aObject*);
+using callback_func_t = void(__cdecl*)();
 
 enum aObjectState
 {
@@ -67,7 +90,89 @@ enum aObjectState
 
 class aObject;
 class aAnimation;
-class aTimeManager;
+class aCallback;
+
+struct aCallback_vtable
+{
+    void(__thiscall* ExecCallback)(aCallback*);
+};
+
+class aCallback
+{
+public:
+    aCallback_vtable* vtable;
+    callback_func_t func;
+    aObject* owner;
+    int32_t event_id;
+public:
+    static void* operator new(size_t size);
+
+    static void* operator new(size_t size, void* ptr);
+
+    static void operator delete(void* ptr);
+
+    // public: __thiscall aCallback::aCallback(void)
+    aCallback();
+
+    // public: __thiscall aCallback::~aCallback(void)
+    ~aCallback();
+
+    // public: void __thiscall aCallback::destroy(void)
+    void destroy();
+
+    // public: void __thiscall aCallback::setExec(void (__cdecl*)(void))
+    void setExec(callback_func_t f);
+
+    // public: virtual void __thiscall aCallback::setMessage(class aObject *,long)
+    void setMessage(aObject* owner, int32_t event_id);
+
+    void ExecCallback();
+};
+
+static constexpr size_t MAX_TIMERS = 100;
+
+class aTimer
+{
+public:
+    DWORD start_time; // 0x0
+    DWORD ticks; // 0x4
+    aObject* owner; // 0x8
+    short event_id; // 0x1c
+    short field_0xxe; // 0xxE
+    int32_t event_type; // 0x10
+    int32_t event_param; // 0x14
+    int32_t use_scenario_time; // 0x18
+};
+
+class aTimerManager
+{
+public:
+    int32_t num_timers;
+    aTimer* timers[MAX_TIMERS]; // 100
+    uint8_t unused[792]; // ????
+    aCallback* timers_callback;
+    int32_t lock_state;
+    aTimer* locked_timer;
+public:
+    // public: __thiscall aTimerManager::aTimerManager(void)
+    aTimerManager();
+
+    // public: __thiscall aTimerManager::~aTimerManager(void)
+    ~aTimerManager();
+
+    // public: long __thiscall aTimerManager::AddTimer(class aObject *,short,unsigned long, long, long, int)
+    long AddTimer(aObject* owner, short event_id, uint32_t start_time, int32_t event_type, int32_t event_param, int32_t use_scenario_time);
+
+    // public: long __thiscall aTimerManager::AddUniqueTimer(class aObject *,short,unsigned long, long, long, int)
+    long AddUniqueTimer(aObject* owner, short event_id, uint32_t start_time, int32_t event_type, int32_t event_param, int32_t use_scenario_time);
+    
+    // public: struct aTimer * __thiscall aTimerManager::GetTimer(short)
+    aTimer* GetTimer(short timer_idx);
+
+    // public: struct aTimer * __thiscall aTimerManager::GetTimer(class aObject *,short)
+    aTimer* GetTimer2(aObject* owner, short event_id);
+
+};
 
 struct aObject_vtable
 {
@@ -392,201 +497,10 @@ public:
     int32_t field_0x4bc; // 0x4bc
     IDirectDrawPalette* ddraw_palette;         // 0x4c0
     int32_t field_0x4c4; // 0x4c4
-    int32_t field_0x4c8; // 0x4c8
-    int32_t field_0x4cc; // 0x4cc
-    int32_t field_0x4d0; // 0x4d0
-    int32_t field_0x4d4; // 0x4d4
-    int32_t field_0x4d8; // 0x4d8
-    int32_t field_0x4dc; // 0x4dc
-    int32_t field_0x4e0; // 0x4e0
-    int32_t field_0x4e4; // 0x4e4
-    int32_t field_0x4e8; // 0x4e8
-    int32_t field_0x4ec; // 0x4ec
-    int32_t field_0x4f0; // 0x4f0
-    int32_t field_0x4f4; // 0x4f4
-    int32_t field_0x4f8; // 0x4f8
-    int32_t field_0x4fc; // 0x4fc
-    int32_t field_0x500; // 0x500
-    int32_t field_0x504; // 0x504
-    int32_t field_0x508; // 0x508
-    int32_t field_0x50c; // 0x50c
-    int32_t field_0x510; // 0x510
-    int32_t field_0x514; // 0x514
-    int32_t field_0x518; // 0x518
-    int32_t field_0x51c; // 0x51c
-    int32_t field_0x520; // 0x520
-    int32_t field_0x524; // 0x524
-    int32_t field_0x528; // 0x528
-    int32_t field_0x52c; // 0x52c
-    int32_t field_0x530; // 0x530
-    int32_t field_0x534; // 0x534
-    int32_t field_0x538; // 0x538
-    int32_t field_0x53c; // 0x53c
-    int32_t field_0x540; // 0x540
-    int32_t field_0x544; // 0x544
-    int32_t field_0x548; // 0x548
-    int32_t field_0x54c; // 0x54c
-    int32_t field_0x550; // 0x550
-    int32_t field_0x554; // 0x554
-    int32_t field_0x558; // 0x558
-    int32_t field_0x55c; // 0x55c
-    int32_t field_0x560; // 0x560
-    int32_t field_0x564; // 0x564
-    int32_t field_0x568; // 0x568
-    int32_t field_0x56c; // 0x56c
-    int32_t field_0x570; // 0x570
-    int32_t field_0x574; // 0x574
-    int32_t field_0x578; // 0x578
-    int32_t field_0x57c; // 0x57c
-    int32_t field_0x580; // 0x580
-    int32_t field_0x584; // 0x584
-    int32_t field_0x588; // 0x588
-    int32_t field_0x58c; // 0x58c
-    int32_t field_0x590; // 0x590
-    int32_t field_0x594; // 0x594
-    int32_t field_0x598; // 0x598
-    int32_t field_0x59c; // 0x59c
-    int32_t field_0x5a0; // 0x5a0
-    int32_t field_0x5a4; // 0x5a4
-    int32_t field_0x5a8; // 0x5a8
-    int32_t field_0x5ac; // 0x5ac
-    int32_t field_0x5b0; // 0x5b0
-    int32_t field_0x5b4; // 0x5b4
-    int32_t field_0x5b8; // 0x5b8
-    int32_t field_0x5bc; // 0x5bc
-    int32_t field_0x5c0; // 0x5c0
-    int32_t field_0x5c4; // 0x5c4
-    int32_t field_0x5c8; // 0x5c8
-    int32_t field_0x5cc; // 0x5cc
-    int32_t field_0x5d0; // 0x5d0
-    int32_t field_0x5d4; // 0x5d4
-    int32_t field_0x5d8; // 0x5d8
-    int32_t field_0x5dc; // 0x5dc
-    int32_t field_0x5e0; // 0x5e0
-    int32_t field_0x5e4; // 0x5e4
-    int32_t field_0x5e8; // 0x5e8
-    int32_t field_0x5ec; // 0x5ec
-    int32_t field_0x5f0; // 0x5f0
-    int32_t field_0x5f4; // 0x5f4
-    int32_t field_0x5f8; // 0x5f8
-    int32_t field_0x5fc; // 0x5fc
-    int32_t field_0x600; // 0x600
-    int32_t field_0x604; // 0x604
-    int32_t field_0x608; // 0x608
-    int32_t field_0x60c; // 0x60c
-    int32_t field_0x610; // 0x610
-    int32_t field_0x614; // 0x614
-    int32_t field_0x618; // 0x618
-    int32_t field_0x61c; // 0x61c
-    int32_t field_0x620; // 0x620
-    int32_t field_0x624; // 0x624
-    int32_t field_0x628; // 0x628
-    int32_t field_0x62c; // 0x62c
-    int32_t field_0x630; // 0x630
-    int32_t field_0x634; // 0x634
-    int32_t field_0x638; // 0x638
-    int32_t field_0x63c; // 0x63c
-    int32_t field_0x640; // 0x640
-    int32_t field_0x644; // 0x644
-    int32_t field_0x648; // 0x648
-    int32_t field_0x64c; // 0x64c
-    int32_t field_0x650; // 0x650
-    int32_t field_0x654; // 0x654
-    int32_t field_0x658; // 0x658
-    int32_t field_0x65c; // 0x65c
-    int32_t field_0x660; // 0x660
-    int32_t field_0x664; // 0x664
-    int32_t field_0x668; // 0x668
-    int32_t field_0x66c; // 0x66c
-    int32_t field_0x670; // 0x670
-    int32_t field_0x674; // 0x674
-    int32_t field_0x678; // 0x678
-    int32_t field_0x67c; // 0x67c
-    int32_t field_0x680; // 0x680
-    int32_t field_0x684; // 0x684
-    int32_t field_0x688; // 0x688
-    int32_t field_0x68c; // 0x68c
-    int32_t field_0x690; // 0x690
-    int32_t field_0x694; // 0x694
-    int32_t field_0x698; // 0x698
-    int32_t field_0x69c; // 0x69c
-    int32_t field_0x6a0; // 0x6a0
-    int32_t field_0x6a4; // 0x6a4
-    int32_t field_0x6a8; // 0x6a8
-    int32_t field_0x6ac; // 0x6ac
-    int32_t field_0x6b0; // 0x6b0
-    int32_t field_0x6b4; // 0x6b4
-    int32_t field_0x6b8; // 0x6b8
-    int32_t field_0x6bc; // 0x6bc
-    int32_t field_0x6c0; // 0x6c0
-    int32_t field_0x6c4; // 0x6c4
-    int32_t field_0x6c8; // 0x6c8
-    int32_t field_0x6cc; // 0x6cc
-    int32_t field_0x6d0; // 0x6d0
-    int32_t field_0x6d4; // 0x6d4
-    int32_t field_0x6d8; // 0x6d8
-    int32_t field_0x6dc; // 0x6dc
-    int32_t field_0x6e0; // 0x6e0
-    int32_t field_0x6e4; // 0x6e4
-    int32_t field_0x6e8; // 0x6e8
-    int32_t field_0x6ec; // 0x6ec
-    int32_t field_0x6f0; // 0x6f0
-    int32_t field_0x6f4; // 0x6f4
-    int32_t field_0x6f8; // 0x6f8
-    int32_t field_0x6fc; // 0x6fc
-    int32_t field_0x700; // 0x700
-    int32_t field_0x704; // 0x704
-    int32_t field_0x708; // 0x708
-    int32_t field_0x70c; // 0x70c
-    int32_t field_0x710; // 0x710
-    int32_t field_0x714; // 0x714
-    int32_t field_0x718; // 0x718
-    int32_t field_0x71c; // 0x71c
-    int32_t field_0x720; // 0x720
-    int32_t field_0x724; // 0x724
-    int32_t field_0x728; // 0x728
-    int32_t field_0x72c; // 0x72c
-    int32_t field_0x730; // 0x730
-    int32_t field_0x734; // 0x734
-    int32_t field_0x738; // 0x738
-    int32_t field_0x73c; // 0x73c
-    int32_t field_0x740; // 0x740
-    int32_t field_0x744; // 0x744
-    int32_t field_0x748; // 0x748
-    int32_t field_0x74c; // 0x74c
-    int32_t field_0x750; // 0x750
-    int32_t field_0x754; // 0x754
-    int32_t field_0x758; // 0x758
-    int32_t field_0x75c; // 0x75c
-    int32_t field_0x760; // 0x760
-    int32_t field_0x764; // 0x764
-    int32_t field_0x768; // 0x768
-    int32_t field_0x76c; // 0x76c
-    int32_t field_0x770; // 0x770
-    int32_t field_0x774; // 0x774
-    int32_t field_0x778; // 0x778
-    int32_t field_0x77c; // 0x77c
-    int32_t field_0x780; // 0x780
-    int32_t field_0x784; // 0x784
-    int32_t field_0x788; // 0x788
-    int32_t field_0x78c; // 0x78c
-    int32_t field_0x790; // 0x790
-    int32_t field_0x794; // 0x794
-    int32_t field_0x798; // 0x798
-    int32_t field_0x79c; // 0x79c
-    int32_t field_0x7a0; // 0x7a0
-    int32_t field_0x7a4; // 0x7a4
-    int32_t field_0x7a8; // 0x7a8
-    int32_t field_0x7ac; // 0x7ac
-    int32_t field_0x7b0; // 0x7b0
-    int32_t field_0x7b4; // 0x7b4
-    int32_t field_0x7b8; // 0x7b8
-    int32_t field_0x7bc; // 0x7bc
-    int32_t field_0x7c0; // 0x7c0
-    int32_t field_0x7c4; // 0x7c4
-    int32_t field_0x7c8; // 0x7c8
-    int32_t field_0x7cc; // 0x7cc
-    int32_t field_0x7d0; // 0x7d0
+    int32_t field_0x4c8; // 0x4c8 // palette_cycle
+    int32_t field_0x4cc; // 0x4cc // flip_to_gdi
+    VFX_RGB master_palette[256]; // 0x4d0
+    int32_t gamma; // 0x7d0 // gamma
     int32_t field_0x7d4; // 0x7d4
     int32_t field_0x7d8; // 0x7d8
     int32_t field_0x7dc; // 0x7dc
@@ -666,106 +580,8 @@ public:
     int32_t field_0x904; // 0x904
     int32_t field_0x908; // 0x908
     HWND window_handle; // 0x90c
-    int32_t field_0x910; // 0x910
-    int32_t field_0x914; // 0x914
-    int32_t field_0x918; // 0x918
-    int32_t field_0x91c; // 0x91c
-    int32_t field_0x920; // 0x920
-    int32_t field_0x924; // 0x924
-    int32_t field_0x928; // 0x928
-    int32_t field_0x92c; // 0x92c
-    int32_t field_0x930; // 0x930
-    int32_t field_0x934; // 0x934
-    int32_t field_0x938; // 0x938
-    int32_t field_0x93c; // 0x93c
-    int32_t field_0x940; // 0x940
-    int32_t field_0x944; // 0x944
-    int32_t field_0x948; // 0x948
-    int32_t field_0x94c; // 0x94c
-    int32_t field_0x950; // 0x950
-    int32_t field_0x954; // 0x954
-    int32_t field_0x958; // 0x958
-    int32_t field_0x95c; // 0x95c
-    int32_t field_0x960; // 0x960
-    int32_t field_0x964; // 0x964
-    int32_t field_0x968; // 0x968
-    int32_t field_0x96c; // 0x96c
-    int32_t field_0x970; // 0x970
-    int32_t field_0x974; // 0x974
-    int32_t field_0x978; // 0x978
-    int32_t field_0x97c; // 0x97c
-    int32_t field_0x980; // 0x980
-    int32_t field_0x984; // 0x984
-    int32_t field_0x988; // 0x988
-    int32_t field_0x98c; // 0x98c
-    int32_t field_0x990; // 0x990
-    int32_t field_0x994; // 0x994
-    int32_t field_0x998; // 0x998
-    int32_t field_0x99c; // 0x99c
-    int32_t field_0x9a0; // 0x9a0
-    int32_t field_0x9a4; // 0x9a4
-    int32_t field_0x9a8; // 0x9a8
-    int32_t field_0x9ac; // 0x9ac
-    int32_t field_0x9b0; // 0x9b0
-    int32_t field_0x9b4; // 0x9b4
-    int32_t field_0x9b8; // 0x9b8
-    int32_t field_0x9bc; // 0x9bc
-    int32_t field_0x9c0; // 0x9c0
-    int32_t field_0x9c4; // 0x9c4
-    int32_t field_0x9c8; // 0x9c8
-    int32_t field_0x9cc; // 0x9cc
-    int32_t field_0x9d0; // 0x9d0
-    int32_t field_0x9d4; // 0x9d4
-    int32_t field_0x9d8; // 0x9d8
-    int32_t field_0x9dc; // 0x9dc
-    int32_t field_0x9e0; // 0x9e0
-    int32_t field_0x9e4; // 0x9e4
-    int32_t field_0x9e8; // 0x9e8
-    int32_t field_0x9ec; // 0x9ec
-    int32_t field_0x9f0; // 0x9f0
-    int32_t field_0x9f4; // 0x9f4
-    int32_t field_0x9f8; // 0x9f8
-    int32_t field_0x9fc; // 0x9fc
-    int32_t field_0xa00; // 0xa00
-    int32_t field_0xa04; // 0xa04
-    int32_t field_0xa08; // 0xa08
-    int32_t field_0xa0c; // 0xa0c
-    int32_t field_0xa10; // 0xa10
-    int32_t field_0xa14; // 0xa14
-    int32_t field_0xa18; // 0xa18
-    int32_t field_0xa1c; // 0xa1c
-    int32_t field_0xa20; // 0xa20
-    int32_t field_0xa24; // 0xa24
-    int32_t field_0xa28; // 0xa28
-    int32_t field_0xa2c; // 0xa2c
-    int32_t field_0xa30; // 0xa30
-    int32_t field_0xa34; // 0xa34
-    int32_t field_0xa38; // 0xa38
-    int32_t field_0xa3c; // 0xa3c
-    int32_t field_0xa40; // 0xa40
-    int32_t field_0xa44; // 0xa44
-    int32_t field_0xa48; // 0xa48
-    int32_t field_0xa4c; // 0xa4c
-    int32_t field_0xa50; // 0xa50
-    int32_t field_0xa54; // 0xa54
-    int32_t field_0xa58; // 0xa58
-    int32_t field_0xa5c; // 0xa5c
-    int32_t field_0xa60; // 0xa60
-    int32_t field_0xa64; // 0xa64
-    int32_t field_0xa68; // 0xa68
-    int32_t field_0xa6c; // 0xa6c
-    int32_t field_0xa70; // 0xa70
-    int32_t field_0xa74; // 0xa74
-    int32_t field_0xa78; // 0xa78
-    int32_t field_0xa7c; // 0xa7c
-    int32_t field_0xa80; // 0xa80
-    int32_t field_0xa84; // 0xa84
-    int32_t field_0xa88; // 0xa88
-    int32_t field_0xa8c; // 0xa8c
-    int32_t field_0xa90; // 0xa90
-    int32_t field_0xa94; // 0xa94
-    int32_t field_0xa98; // 0xa98
-    int32_t field_0xa9c; // 0xa9c
+    int32_t num_callbacks; // 0x910
+    aCallback* callbacks[99]; // 0x914
     int32_t field_0xaa0; // 0xaa0
     int32_t field_0xaa4; // 0xaa4
     int32_t field_0xaa8; // 0xaa8
@@ -785,7 +601,7 @@ public:
     int32_t field_0xae0; // 0xae0
     int32_t field_0xae4; // 0xae4
     int32_t field_0xae8; // 0xae8
-    int32_t field_0xaec; // 0xaec
+    BOOL allow_sys_palette_changes; // 0xaec
     int32_t field_0xaf0; // 0xaf0
     int32_t field_0xaf4; // 0xaf4
     int32_t field_0xaf8; // 0xaf8
@@ -805,130 +621,184 @@ public:
     long shutdownDirectDraw();
 
     // public: int __thiscall aSystem::tweakDDPalette(int,int,struct VFX_RGB *,int)
-    int tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, int param_4);
+    int tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, BOOL param_4);
+
+    // public: void __thiscall aSystem::activatePalette(unsigned char *,int,int)
+    void activatePalette(uint8_t* rgb_data, int pal_first_entry, int pal_num_entries);
+
+    // public: void __thiscall aSystem::activatePaletteFromTGA(char *)
+    void activatePaletteFromTGA(char* pal_file_name);
+
+    // public: void __thiscall aSystem::activateSmackerPalette(unsigned char *)
+    void activateSmackerPalette(uint8_t* data);
+
+    // public: void __thiscall aSystem::activatePaletteFromGIF(char *)
+    void activatePaletteFromGIF(char* pal_file_name);
+
+    // public: void __thiscall aSystem::fadeDownCurrentPalette(void)
+    void fadeDownCurrentPalette();
+
+    // public: long __thiscall aSystem::addCallback(class aCallback *)
+    long addCallback(aCallback* cb);
 };
 #pragma endregion
 
 #pragma region VAs
-static constexpr uintptr_t va_aObject_ctor = 0x0060e440;
-static constexpr uintptr_t va_aObject_dtor = 0x0060e4d0;
-static constexpr uintptr_t va_aObject_y = 0x0060f520;
-static constexpr uintptr_t va_aObject_x = 0x0060f510;
-static constexpr uintptr_t va_aObject_width = 0x0060f4c0;
-static constexpr uintptr_t va_aObject_height = 0x0060f4d0;
-static constexpr uintptr_t va_aObject_top = 0x0060a7f0;
-static constexpr uintptr_t va_aObject_stopModal = 0x0060eae0;
-static constexpr uintptr_t va_aObject_stopDrag = 0x0060f430;
-static constexpr uintptr_t va_aObject_stopAnimation = 0x0060eac0;
-static constexpr uintptr_t va_aObject_state = 0x0060fc50;
-static constexpr uintptr_t va_aObject_startModal = 0x0060ead0;
-static constexpr uintptr_t va_aObject_startDrag = 0x0060f400;
-static constexpr uintptr_t va_aObject_startAnimation = 0x0060eab0;
-static constexpr uintptr_t va_aObject_SetTransparent = 0x0060a7d0;
-static constexpr uintptr_t va_aObject_setState = 0x0060fc60;
-static constexpr uintptr_t va_aObject_setParent = 0x0060ea50;
-static constexpr uintptr_t va_aObject_setPaintRoutine = 0x0060e990;
-static constexpr uintptr_t va_aObject_setIcon = 0x0060fe10;
-static constexpr uintptr_t va_aObject_SetHideDirection = 0x0060a7c0;
-static constexpr uintptr_t va_aObject_setEventRoutine = 0x0060e9a0;
-static constexpr uintptr_t va_aObject_setDisplayPort = 0x0060e880;
-static constexpr uintptr_t va_aObject_setDepth = 0x0060ea60;
-static constexpr uintptr_t va_aObject_SetBit = 0x0060fed0;
-static constexpr uintptr_t va_aObject_setBackground = 0x0060fb20;
-static constexpr uintptr_t va_aObject_setBackground2 = 0x0060fba0;
-static constexpr uintptr_t va_aObject_setBackColor = 0x0060eaf0;
-static constexpr uintptr_t va_aObject_setAnimation = 0x0060fda0;
-static constexpr uintptr_t va_aObject_resize = 0x0060f650;
-static constexpr uintptr_t va_aObject_removeChild = 0x0060f2a0;
-static constexpr uintptr_t va_aObject_rectIntersect1 = 0x0060e950;
-static constexpr uintptr_t va_aObject_rectIntersect2 = 0x0060e910;
-static constexpr uintptr_t va_aObject_ptr = 0x0060f4e0;
-static constexpr uintptr_t va_aObject_port = 0x0060f500;
-static constexpr uintptr_t va_aObject_pointInside = 0x0060e8e0;
-static constexpr uintptr_t va_aObject_paint = 0x0060e9b0;
-static constexpr uintptr_t va_aObject_operator_new = 0x0060e4e0;
-static constexpr uintptr_t va_aObject_operator_delete = 0x0060e500;
-static constexpr uintptr_t va_aObject_numberOfChildren = 0x0060f1e0;
-static constexpr uintptr_t va_aObject_normalize = 0x0060fc30;
-static constexpr uintptr_t va_aObject_moveTo = 0x0060f5a0;
-static constexpr uintptr_t va_aObject_maximize = 0x0060fc20;
-static constexpr uintptr_t va_aObject_left = 0x0060a7e0;
-static constexpr uintptr_t va_aObject_right = 0x0060a800;
-static constexpr uintptr_t va_aObject_leave = 0x0060e8d0;
-static constexpr uintptr_t va_aObject_IsShowing = 0x0060a7a0;
-static constexpr uintptr_t va_aObject_IsHidden = 0x0060a7b0;
-static constexpr uintptr_t va_aObject_init = 0x0060e520;
-static constexpr uintptr_t va_aObject_iconize = 0x0060fc40;
-static constexpr uintptr_t va_aObject_icon = 0x0060feb0;
-static constexpr uintptr_t va_aObject_HideMe = 0x0060ff30;
-static constexpr uintptr_t va_aObject_handleEvent = 0x0060f950;
-static constexpr uintptr_t va_aObject_globalY = 0x0060f560;
-static constexpr uintptr_t va_aObject_globalX = 0x0060f530;
-static constexpr uintptr_t va_aObject_getDropTargetCount = 0x0060a850;
-static constexpr uintptr_t va_aObject_getDropTarget = 0x0060a860;
-static constexpr uintptr_t va_aObject_GetCamera = 0x0060a790;
-static constexpr uintptr_t va_aObject_frame = 0x0060f590;
-static constexpr uintptr_t va_aObject_foremostChild = 0x0060f460;
-static constexpr uintptr_t va_aObject_findObject = 0x0060e9c0;
-static constexpr uintptr_t va_aObject_FillBox = 0x0060eec0;
-static constexpr uintptr_t va_aObject_drawFramed = 0x0060ebf0;
-static constexpr uintptr_t va_aObject_drawBox = 0x0060a750;
-static constexpr uintptr_t va_aObject_drawBox2 = 0x0060eb10;
-static constexpr uintptr_t va_aObject_draw = 0x0060f6f0;
-static constexpr uintptr_t va_aObject_dragStartY = 0x0060f450;
-static constexpr uintptr_t va_aObject_dragStartX = 0x0060f440;
-static constexpr uintptr_t va_aObject_dragging = 0x0060f3f0;
-static constexpr uintptr_t va_aObject_display = 0x0060f790;
-static constexpr uintptr_t va_aObject_destroy = 0x0060e6b0;
-static constexpr uintptr_t va_aObject_depth = 0x0060eaa0;
-static constexpr uintptr_t va_aObject_children = 0x0060ea40;
-static constexpr uintptr_t va_aObject_child = 0x0060f4a0;
-static constexpr uintptr_t va_aObject_checkSmackerPalette = 0x0060a840;
-static constexpr uintptr_t va_aObject_bottom = 0x0060a820;
-static constexpr uintptr_t va_aObject_background = 0x0060fec0;
-static constexpr uintptr_t va_aObject_backColor = 0x0060eb00;
-static constexpr uintptr_t va_aObject_animation = 0x0060fea0;
-static constexpr uintptr_t va_aObject_addChild = 0x0060f1f0;
-static constexpr uintptr_t va_aObject_vftable = 0x0077add4;
-static constexpr uintptr_t va_aObject_vector_deleting_destructor = 0x0060e4a0;
+VADDR(va_aObject_ctor, 0x0060e440);
+VADDR(va_aObject_dtor, 0x0060e4d0);
+VADDR(va_aObject_y, 0x0060f520);
+VADDR(va_aObject_x, 0x0060f510);
+VADDR(va_aObject_width, 0x0060f4c0);
+VADDR(va_aObject_height, 0x0060f4d0);
+VADDR(va_aObject_top, 0x0060a7f0);
+VADDR(va_aObject_stopModal, 0x0060eae0);
+VADDR(va_aObject_stopDrag, 0x0060f430);
+VADDR(va_aObject_stopAnimation, 0x0060eac0);
+VADDR(va_aObject_state, 0x0060fc50);
+VADDR(va_aObject_startModal, 0x0060ead0);
+VADDR(va_aObject_startDrag, 0x0060f400);
+VADDR(va_aObject_startAnimation, 0x0060eab0);
+VADDR(va_aObject_SetTransparent, 0x0060a7d0);
+VADDR(va_aObject_setState, 0x0060fc60);
+VADDR(va_aObject_setParent, 0x0060ea50);
+VADDR(va_aObject_setPaintRoutine, 0x0060e990);
+VADDR(va_aObject_setIcon, 0x0060fe10);
+VADDR(va_aObject_SetHideDirection, 0x0060a7c0);
+VADDR(va_aObject_setEventRoutine, 0x0060e9a0);
+VADDR(va_aObject_setDisplayPort, 0x0060e880);
+VADDR(va_aObject_setDepth, 0x0060ea60);
+VADDR(va_aObject_SetBit, 0x0060fed0);
+VADDR(va_aObject_setBackground, 0x0060fb20);
+VADDR(va_aObject_setBackground2, 0x0060fba0);
+VADDR(va_aObject_setBackColor, 0x0060eaf0);
+VADDR(va_aObject_setAnimation, 0x0060fda0);
+VADDR(va_aObject_resize, 0x0060f650);
+VADDR(va_aObject_removeChild, 0x0060f2a0);
+VADDR(va_aObject_rectIntersect1, 0x0060e950);
+VADDR(va_aObject_rectIntersect2, 0x0060e910);
+VADDR(va_aObject_ptr, 0x0060f4e0);
+VADDR(va_aObject_port, 0x0060f500);
+VADDR(va_aObject_pointInside, 0x0060e8e0);
+VADDR(va_aObject_paint, 0x0060e9b0);
+VADDR(va_aObject_operator_new, 0x0060e4e0);
+VADDR(va_aObject_operator_delete, 0x0060e500);
+VADDR(va_aObject_numberOfChildren, 0x0060f1e0);
+VADDR(va_aObject_normalize, 0x0060fc30);
+VADDR(va_aObject_moveTo, 0x0060f5a0);
+VADDR(va_aObject_maximize, 0x0060fc20);
+VADDR(va_aObject_left, 0x0060a7e0);
+VADDR(va_aObject_right, 0x0060a800);
+VADDR(va_aObject_leave, 0x0060e8d0);
+VADDR(va_aObject_IsShowing, 0x0060a7a0);
+VADDR(va_aObject_IsHidden, 0x0060a7b0);
+VADDR(va_aObject_init, 0x0060e520);
+VADDR(va_aObject_iconize, 0x0060fc40);
+VADDR(va_aObject_icon, 0x0060feb0);
+VADDR(va_aObject_HideMe, 0x0060ff30);
+VADDR(va_aObject_handleEvent, 0x0060f950);
+VADDR(va_aObject_globalY, 0x0060f560);
+VADDR(va_aObject_globalX, 0x0060f530);
+VADDR(va_aObject_getDropTargetCount, 0x0060a850);
+VADDR(va_aObject_getDropTarget, 0x0060a860);
+VADDR(va_aObject_GetCamera, 0x0060a790);
+VADDR(va_aObject_frame, 0x0060f590);
+VADDR(va_aObject_foremostChild, 0x0060f460);
+VADDR(va_aObject_findObject, 0x0060e9c0);
+VADDR(va_aObject_FillBox, 0x0060eec0);
+VADDR(va_aObject_drawFramed, 0x0060ebf0);
+VADDR(va_aObject_drawBox, 0x0060a750);
+VADDR(va_aObject_drawBox2, 0x0060eb10);
+VADDR(va_aObject_draw, 0x0060f6f0);
+VADDR(va_aObject_dragStartY, 0x0060f450);
+VADDR(va_aObject_dragStartX, 0x0060f440);
+VADDR(va_aObject_dragging, 0x0060f3f0);
+VADDR(va_aObject_display, 0x0060f790);
+VADDR(va_aObject_destroy, 0x0060e6b0);
+VADDR(va_aObject_depth, 0x0060eaa0);
+VADDR(va_aObject_children, 0x0060ea40);
+VADDR(va_aObject_child, 0x0060f4a0);
+VADDR(va_aObject_checkSmackerPalette, 0x0060a840);
+VADDR(va_aObject_bottom, 0x0060a820);
+VADDR(va_aObject_background, 0x0060fec0);
+VADDR(va_aObject_backColor, 0x0060eb00);
+VADDR(va_aObject_animation, 0x0060fea0);
+VADDR(va_aObject_addChild, 0x0060f1f0);
+VADDR(va_aObject_vftable, 0x0077add4);
+VADDR(va_aObject_vector_deleting_destructor, 0x0060e4a0);
 
-static constexpr uintptr_t va_aSystem_vftable = 0x0077af08;
-static constexpr uintptr_t va_aSystem_startupDirectDraw = 0x0060db20;
-static constexpr uintptr_t va_aSystem_resetDirectDraw = 0x0060df40;
-static constexpr uintptr_t va_aSystem_shutdownDirectDraw = 0x0060e330;
-static constexpr uintptr_t va_aSystem_tweakDDPalette = 0x00614a70;
+VADDR(va_aCallback_vftable, 0x0077b1a8);
+VADDR(va_aCallback_ctor, 0x006157c0);
+VADDR(va_aCallback_dtor, 0x006157e0);
+VADDR(va_aCallback_operator_new, 0x00615770);
+VADDR(va_aCallback_operator_delete, 0x006157a0);
+VADDR(va_aCallback_ExecFunc, 0x00615830);
+VADDR(va_aCallback_destroy, 0x00615800);
+VADDR(va_aCallback_setExec, 0x00615880);
+VADDR(va_aCallback_setMessage, 0x006158a0);
+VADDR(va_TimersCallback, 0x006158f0);
 
-static constexpr uintptr_t va_bmi = 0x007a9f90;
-static constexpr uintptr_t va_aRedrawScreen = 0x00610410;
-static constexpr uintptr_t va_screenWindow = 0x007ab154;
-static constexpr uintptr_t va_logicalPalette = 0x007aa3c0;
-static constexpr uintptr_t va_DesktopDC = 0x007aae7c;
-static constexpr uintptr_t va_OffscreenBufferDC = 0x007aae70;
-static constexpr uintptr_t va_hPalette = 0x007aae84;
-static constexpr uintptr_t va_holdPalette = 0x007aa990;
-static constexpr uintptr_t va_OffScreenhDIBSection = 0x007aae74;
-static constexpr uintptr_t va_OffScreenhOldBitmap = 0x007aadf0;
+VADDR(va_aTimerManager_AddTimer, 0x00615cb0);
+VADDR(va_aTimerManager_AddUniqueTimer, 0x00615c30);
+VADDR(va_aTimerManager_GetTimer, 0x00615fc0);
+VADDR(va_aTimerManager_GetTimer2, 0x00615fe0);
 
-static constexpr uintptr_t va_FullScreen = 0x007ab0e4;
-static constexpr uintptr_t va_Width = 0x00789f70;
-static constexpr uintptr_t va_Height = 0x00789f74;
-static constexpr uintptr_t va_DAT_007ab0d4 = 0x007ab0d4;
+VADDR(va_aSystem_vftable, 0x0077af08);
+VADDR(va_aSystem_startupDirectDraw, 0x0060db20);
+VADDR(va_aSystem_resetDirectDraw, 0x0060df40);
+VADDR(va_aSystem_shutdownDirectDraw, 0x0060e330);
+VADDR(va_aSystem_addCallback, 0x006147f0);
+VADDR(va_aSystem_tweakDDPalette, 0x00614a70);
+VADDR(va_aSystem_activatePalette, 0x006151c0);
+VADDR(va_aSystem_activatePaletteFromTGA, 0x00615240);
+VADDR(va_aSystem_activateSmackerPalette, 0x00615510);
+VADDR(va_aSystem_activatePaletteFromGIF, 0x00615400);
+VADDR(va_aSystem_fadeDownCurrentPalette, 0x00614f90);
 
-static constexpr uintptr_t va_DAT_007ab104 = 0x007ab104;
-static constexpr uintptr_t va_DAT_007ab108 = 0x007ab108;
-static constexpr uintptr_t va_SystemPalette = 0x007aa3c4; // va_DAT_007aa3c4
-static constexpr uintptr_t va_mouseThreadStarted = 0x007bbbc0;
-static constexpr uintptr_t va_MouseCritSec = 0x007bbb88;
-static constexpr uintptr_t va_InMouseCritSec = 0x007bbbb0;
-static constexpr uintptr_t va_BitDepth = 0x00789f78;
-static constexpr uintptr_t va_aLockScreen = 0x00610450;
-static constexpr uintptr_t va_aUnlockScreen = 0x00610530;
-static constexpr uintptr_t va_InitWindowMode = 0x006125d0;
-static constexpr uintptr_t va_WindowPlacement = 0x007a9ed8;
-static constexpr uintptr_t va_SavedPosition = 0x007ab110;
+VADDR(va_bmi, 0x007a9f90);
+VADDR(va_aRedrawScreen, 0x00610410);
+VADDR(va_screenWindow, 0x007ab154);
+VADDR(va_logicalPalette, 0x007aa3c0);
+VADDR(va_DesktopDC, 0x007aae7c);
+VADDR(va_OffscreenBufferDC, 0x007aae70);
+VADDR(va_hPalette, 0x007aae84);
+VADDR(va_holdPalette, 0x007aa990);
+VADDR(va_OffScreenhDIBSection, 0x007aae74);
+VADDR(va_OffScreenhOldBitmap, 0x007aadf0);
+
+VADDR(va_FullScreen, 0x007ab0e4);
+VADDR(va_Width, 0x00789f70);
+VADDR(va_Height, 0x00789f74);
+VADDR(va_DAT_007ab0d4, 0x007ab0d4);
+
+VADDR(va_DAT_007ab104, 0x007ab104);
+VADDR(va_DAT_007ab108, 0x007ab108);
+VADDR(va_SystemPalette, 0x007aa3c4); // va_DAT_007aa3c4
+VADDR(va_mouseThreadStarted, 0x007bbbc0);
+VADDR(va_MouseCritSec, 0x007bbb88);
+VADDR(va_InMouseCritSec, 0x007bbbb0);
+VADDR(va_BitDepth, 0x00789f78);
+VADDR(va_aLockScreen, 0x00610450);
+VADDR(va_aUnlockScreen, 0x00610530);
+VADDR(va_InitWindowMode, 0x006125d0);
+VADDR(va_WindowPlacement, 0x007a9ed8);
+VADDR(va_SavedPosition, 0x007ab110);
+VADDR(va_InitFullScreen, 0x00612710);
+VADDR(va_GammaColorTranslation, 0x00789f8c);
+VADDR(va_paletteRgb, 0x007ab1ec);
+VADDR(va_globalEntries, 0x007ab1f0);
+VADDR(va_globalFirst, 0x007ab1f4);
+VADDR(va_InitAlphaLookup, 0x0006b51b0);
+VADDR(va_countsPerSecond, 0x007aa7c8);
+VADDR(va_scenarioTime, 0x007f09c4);
+VADDR(va_aPostMessage, 0x00610590);
 #pragma endregion
 
 #pragma region Globals
+OBJ_REF(callback_func_t, g_TimersCallback, va_TimersCallback);
+OBJ_REF(float, g_scenarioTime, va_scenarioTime);
+OBJ_REF(LARGE_INTEGER, g_countsPerSecond, va_countsPerSecond);
+OBJ_REF(int32_t, g_globalEntries, va_globalEntries);
+OBJ_REF(int32_t, g_globalFirst, va_globalFirst);
 OBJ_REF(BOOL, g_SavedPosition, va_SavedPosition);
 OBJ_REF(WINDOWPLACEMENT, g_WindowPlacement, va_WindowPlacement);
 OBJ_REF(RTL_CRITICAL_SECTION, g_MouseCritSec, va_MouseCritSec);
@@ -938,6 +808,7 @@ OBJ_REF(BOOL, g_InMouseCritSec, va_InMouseCritSec);
 OBJ_REF(int32_t, g_BitDepth, va_BitDepth);
 OBJ_REF(int32_t, g_Width, va_Width);
 OBJ_REF(int32_t, g_Height, va_Height);
+PTR_REF(VFX_RGB, g_paletteRgb, va_paletteRgb);
 PTR_REF(aObject, g_screenWindow, va_screenWindow);
 OBJ_REF(BMI, g_bmi, va_bmi);
 OBJ_REF(LogicalPalette, g_logicalPalette, va_logicalPalette);
@@ -950,12 +821,34 @@ OBJ_REF(HBITMAP, g_OffScreenhOldBitmap, va_OffScreenhOldBitmap);
 OBJ_REF(uint32_t, g_DAT_007ab108, va_DAT_007ab108);
 OBJ_REF(int32_t, g_DAT_007ab0d4, va_DAT_007ab0d4);
 ARR_REF(PALETTEENTRY, 256, g_SystemPalette, va_SystemPalette);
+ARR_REF(uint8_t, 256, g_GammaColorTranslation, va_GammaColorTranslation);
 PTR_REF(void, g_DIBBits, va_DAT_007ab104);
 
 static void __cdecl aRedrawScreen();
+static void __cdecl InitFullScreen(void);
 static void __cdecl InitWindowMode(void);
 inline auto aLockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aLockScreen);
 inline auto aUnlockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aUnlockScreen);
+inline auto InitAlphaLookup_ptr = FUN_PTR<void(__cdecl*)(VFX_RGB*)>(va_InitAlphaLookup);
+inline auto aPostMessage_ptr = FUN_PTR<void(__cdecl*)(aObject*, int32_t)>(va_aPostMessage);
+
+static __forceinline void EnterMouseCritSec() noexcept
+{
+    if (g_mouseThreadStarted != FALSE)
+    {
+        EnterCriticalSection(&g_MouseCritSec);
+        g_InMouseCritSec = TRUE;
+    }
+}
+
+static __forceinline void LeaveMouseCritSec() noexcept
+{
+    if (g_mouseThreadStarted != FALSE)
+    {
+        LeaveCriticalSection(&g_MouseCritSec);
+        g_InMouseCritSec = FALSE;
+    }
+}
 #pragma endregion
 
 #pragma region Layout asserts (aObject)
@@ -1008,6 +901,10 @@ ASSERT_FIELD_OFFSET(aObject, drop_target_num, 0x4A4);
 ASSERT_FIELD_OFFSET(aObject, field_0x4a8_maybe_rect_arr, 0x4A8);
 #pragma endregion
 
+#pragma region Layout asserts (aCallback)
+ASSERT_SIZE(aCallback, 0x10);
+#pragma endregion
+
 #pragma region Layout asserts (aObject)
 ASSERT_SIZE(aSystem, 0xb0c);
 ASSERT_ALIGN(aSystem, 0x4);
@@ -1018,4 +915,12 @@ ASSERT_FIELD_OFFSET(aSystem, ddraw_surf1, 0x4b4);
 ASSERT_FIELD_OFFSET(aSystem, ddraw_attached_surf, 0x4b8);
 ASSERT_FIELD_OFFSET(aSystem, field_0x4bc, 0x4bc);
 ASSERT_FIELD_OFFSET(aSystem, ddraw_palette, 0x4c0);
+ASSERT_FIELD_OFFSET(aSystem, master_palette, 0x4d0);
+ASSERT_FIELD_OFFSET(aSystem, gamma, 0x7d0);
+ASSERT_FIELD_OFFSET(aSystem, window_handle, 0x90c);
+ASSERT_FIELD_OFFSET(aSystem, num_callbacks, 0x910);
+ASSERT_FIELD_OFFSET(aSystem, callbacks, 0x914);
+ASSERT_FIELD_OFFSET(aSystem, field_0xaa0, 0xaa0);
+ASSERT_FIELD_OFFSET(aSystem, field_0xb08, 0xb08);
+constexpr static int i = offsetof(aSystem, field_0xaa0);
 #pragma endregion

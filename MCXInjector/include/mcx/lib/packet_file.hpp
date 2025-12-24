@@ -45,12 +45,12 @@ public:
 };
 
 #pragma region VAs
-static constexpr uintptr_t va_PacketFile_ctor = 0x0064d110;
-static constexpr uintptr_t va_PacketFile_clear = 0x0064ce50;
-static constexpr uintptr_t va_PacketFile_seekPacket = 0x0064ce50;
-static constexpr uintptr_t va_PacketFile_vftable = 0x0077c33c;
-static constexpr uintptr_t va_PacketFile_0064d250 = 0x0064d250;
-static constexpr uintptr_t va_PacketFile_artFile = 0x007ab20c;
+VADDR(va_PacketFile_ctor, 0x0064d110);
+VADDR(va_PacketFile_clear, 0x0064ce50);
+VADDR(va_PacketFile_seekPacket, 0x0064ce50);
+VADDR(va_PacketFile_vftable, 0x0077c33c);
+VADDR(va_PacketFile_0064d250, 0x0064d250);
+VADDR(va_PacketFile_artFile, 0x007ab20c);
 #pragma endregion
 
 #pragma region Globals

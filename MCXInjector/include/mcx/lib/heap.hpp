@@ -227,53 +227,53 @@ namespace mcx::heap
 }
 
 #pragma region VAs
-static constexpr uintptr_t va_systemHeap = 0x007aaf8c;
-static constexpr uintptr_t va_guiHeap = 0x007aae78;
+VADDR(va_systemHeap, 0x007aaf8c);
+VADDR(va_guiHeap, 0x007aae78);
 
-static constexpr uintptr_t va_globalHeapList = 0x007d8fb0;
+VADDR(va_globalHeapList, 0x007d8fb0);
 
-static constexpr uintptr_t va_HeapManager_vftable = 0x0077c320;
-static constexpr uintptr_t va_HeapManager_ctor = 0x00646ff0;
-static constexpr uintptr_t va_HeapManager_dtor = 0x00646f20;
-static constexpr uintptr_t va_HeapManager_heapType = 0x00646f40;
-static constexpr uintptr_t va_HeapManager_destroy = 0x00646f50;
-static constexpr uintptr_t va_HeapManager_init = 0x00647010;
-static constexpr uintptr_t va_HeapManager_operator_unsigned_char_ptr = 0x00647050;
-static constexpr uintptr_t va_HeapManager_getHeapPtr = 0x00647070;
-static constexpr uintptr_t va_HeapManager_createHeap = 0x006470b0;
-static constexpr uintptr_t va_HeapManager_commitHeap = 0x00647130;
-static constexpr uintptr_t va_HeapManager_decommitHeap = 0x00647290;
-static constexpr uintptr_t va_HeapManager_VMQuery = 0x006473d0;
-static constexpr uintptr_t va_HeapManager_GetMemStorageText = 0x00647770;
-static constexpr uintptr_t va_HeapManager_GetProtectText = 0x00647800;
-static constexpr uintptr_t va_HeapManager_ConstructRgnInfoLine = 0x006479b0;
-static constexpr uintptr_t va_HeapManager_ConstructBlkInfoLine = 0x00647ad0;
-static constexpr uintptr_t va_HeapManager_MemoryDump = 0x00647b50;
-static constexpr uintptr_t va_HeapManager_owner = 0x00649050;
-static constexpr uintptr_t va_HeapManager_tSize = 0x00649070;
-static constexpr uintptr_t va_HeapManager_systemInfo = 0x007d8fac;
+VADDR(va_HeapManager_vftable, 0x0077c320);
+VADDR(va_HeapManager_ctor, 0x00646ff0);
+VADDR(va_HeapManager_dtor, 0x00646f20);
+VADDR(va_HeapManager_heapType, 0x00646f40);
+VADDR(va_HeapManager_destroy, 0x00646f50);
+VADDR(va_HeapManager_init, 0x00647010);
+VADDR(va_HeapManager_operator_unsigned_char_ptr, 0x00647050);
+VADDR(va_HeapManager_getHeapPtr, 0x00647070);
+VADDR(va_HeapManager_createHeap, 0x006470b0);
+VADDR(va_HeapManager_commitHeap, 0x00647130);
+VADDR(va_HeapManager_decommitHeap, 0x00647290);
+VADDR(va_HeapManager_VMQuery, 0x006473d0);
+VADDR(va_HeapManager_GetMemStorageText, 0x00647770);
+VADDR(va_HeapManager_GetProtectText, 0x00647800);
+VADDR(va_HeapManager_ConstructRgnInfoLine, 0x006479b0);
+VADDR(va_HeapManager_ConstructBlkInfoLine, 0x00647ad0);
+VADDR(va_HeapManager_MemoryDump, 0x00647b50);
+VADDR(va_HeapManager_owner, 0x00649050);
+VADDR(va_HeapManager_tSize, 0x00649070);
+VADDR(va_HeapManager_systemInfo, 0x007d8fac);
 
-static constexpr uintptr_t va_UserHeap_init = 0x00647d40;
+VADDR(va_UserHeap_init, 0x00647d40);
 
-static constexpr uintptr_t va_UserHeap_vftable = 0x0077c324;
-static constexpr uintptr_t va_UserHeap_ctor = 0x00647cd0;
-static constexpr uintptr_t va_UserHeap_dtor = 0x00647ed0;
-static constexpr uintptr_t va_UserHeap_heapType = 0x00647d30;
-static constexpr uintptr_t va_UserHeap_destroy = 0x00647f00;
-static constexpr uintptr_t va_UserHeap_totalCoreLeft = 0x00647f70;
-static constexpr uintptr_t va_UserHeap_coreLeft = 0x00647fd0;
-static constexpr uintptr_t va_UserHeap_malloc = 0x00648020;
-static constexpr uintptr_t va_UserHeap_free = 0x00648230;
-static constexpr uintptr_t va_UserHeap_calloc = 0x006483b0;
-static constexpr uintptr_t va_UserHeap_walkHeap = 0x006483c0;
-static constexpr uintptr_t va_UserHeap_getLastError = 0x00648670;
-static constexpr uintptr_t va_UserHeap_relink = 0x00648690;
-static constexpr uintptr_t va_UserHeap_unlink = 0x00648700;
-static constexpr uintptr_t va_UserHeap_sort = 0x00648760;
-static constexpr uintptr_t va_UserHeap_mergeWithLower = 0x00648830;
+VADDR(va_UserHeap_vftable, 0x0077c324);
+VADDR(va_UserHeap_ctor, 0x00647cd0);
+VADDR(va_UserHeap_dtor, 0x00647ed0);
+VADDR(va_UserHeap_heapType, 0x00647d30);
+VADDR(va_UserHeap_destroy, 0x00647f00);
+VADDR(va_UserHeap_totalCoreLeft, 0x00647f70);
+VADDR(va_UserHeap_coreLeft, 0x00647fd0);
+VADDR(va_UserHeap_malloc, 0x00648020);
+VADDR(va_UserHeap_free, 0x00648230);
+VADDR(va_UserHeap_calloc, 0x006483b0);
+VADDR(va_UserHeap_walkHeap, 0x006483c0);
+VADDR(va_UserHeap_getLastError, 0x00648670);
+VADDR(va_UserHeap_relink, 0x00648690);
+VADDR(va_UserHeap_unlink, 0x00648700);
+VADDR(va_UserHeap_sort, 0x00648760);
+VADDR(va_UserHeap_mergeWithLower, 0x00648830);
 
-static constexpr uintptr_t va_HeapList_addHeap = 0x006488f0;
-static constexpr uintptr_t va_HeapList_removeHeap = 0x00648940;
+VADDR(va_HeapList_addHeap, 0x006488f0);
+VADDR(va_HeapList_removeHeap, 0x00648940);
 #pragma endregion
 
 #pragma region Globals

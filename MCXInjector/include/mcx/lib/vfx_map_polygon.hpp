@@ -7,7 +7,7 @@
 long __cdecl DrawTransparent(_pane*,_window*, int, int, int, int);
 
 #pragma region VAs
-static constexpr uintptr_t va_vfx_DrawTransparent = 0x006b6f20;
+VADDR(va_vfx_DrawTransparent, 0x006b6f20);
 #pragma endregion
 
 #pragma region FuncPtrs

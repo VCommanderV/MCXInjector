@@ -233,52 +233,53 @@ protected:
 };
 
 #pragma region Methods VAs
-static constexpr uintptr_t va_File_vftable = 0x0077c30c;
-static constexpr uintptr_t va_File_ctor = 0x00645400;
-static constexpr uintptr_t va_operator_new = 0x006453A0;
-static constexpr uintptr_t va_operator_delete = 0x006453D0;
+VADDR(va_File_vftable, 0x0077c30c);
+VADDR(va_File_ctor, 0x00645400);
+// TODO: add File
+VADDR(va_operator_new, 0x006453A0);
+VADDR(va_operator_delete, 0x006453D0);
 
-static constexpr uintptr_t va_File_getFileClass = 0x00645440;
-static constexpr uintptr_t va_File_dtor = 0x00645450;
-static constexpr uintptr_t va_File_eof = 0x00645460;
+VADDR(va_File_getFileClass, 0x00645440);
+VADDR(va_File_dtor, 0x00645450);
+VADDR(va_File_eof, 0x00645460);
 // virtual long __thiscall File::open(char *,enum FileMode,long)
-static constexpr uintptr_t va_File_open = 0x00645480;
+VADDR(va_File_open, 0x00645480);
 // virtual long __thiscall File::open(class File *,unsigned long,long)
-static constexpr uintptr_t va_File_open2 = 0x00645780;
-static constexpr uintptr_t va_File_create = 0x00645940;
-static constexpr uintptr_t va_File_addChild = 0x00645960;
-static constexpr uintptr_t va_File_removeChild = 0x006459A0;
-static constexpr uintptr_t va_File_close = 0x006459E0;
-static constexpr uintptr_t va_File_deleteFile = 0x00645AE0;
-static constexpr uintptr_t va_File_seek = 0x00645B00;
-static constexpr uintptr_t va_File_read = 0x00645CB0;
-static constexpr uintptr_t va_File_readByte = 0x00645DA0;
-static constexpr uintptr_t va_File_readWord = 0x00645E50;
-static constexpr uintptr_t va_File_readShort = 0x00645F00;
-static constexpr uintptr_t va_File_readString = 0x00645FC0;
-static constexpr uintptr_t va_File_read2 = 0x00646010;
-static constexpr uintptr_t va_File_readLine = 0x006460E0;
-static constexpr uintptr_t va_File_readLineEx = 0x00646290;
-static constexpr uintptr_t va_File_write = 0x00646410;
-static constexpr uintptr_t va_File_write2 = 0x006467A0;
-static constexpr uintptr_t va_File_writeByte = 0x006464A0;
-static constexpr uintptr_t va_File_writeWord = 0x00646520;
-static constexpr uintptr_t va_File_writeShort = 0x006465A0;
-static constexpr uintptr_t va_File_writeLong = 0x006465B0;
-static constexpr uintptr_t va_File_writeFloat = 0x00646630;
-static constexpr uintptr_t va_File_writeString = 0x006466B0;
-static constexpr uintptr_t va_File_writeLine = 0x00646720;
-static constexpr uintptr_t va_File_isOpen = 0x00646830;
-static constexpr uintptr_t va_File_getFilename = 0x00646850;
-static constexpr uintptr_t va_File_getLength = 0x00646860;
-static constexpr uintptr_t va_File_fileSize = 0x006468C0;
-static constexpr uintptr_t va_File_getNumLines = 0x006468D0;
-static constexpr uintptr_t va_File_skip = 0x00646940;
+VADDR(va_File_open2, 0x00645780);
+VADDR(va_File_create, 0x00645940);
+VADDR(va_File_addChild, 0x00645960);
+VADDR(va_File_removeChild, 0x006459A0);
+VADDR(va_File_close, 0x006459E0);
+VADDR(va_File_deleteFile, 0x00645AE0);
+VADDR(va_File_seek, 0x00645B00);
+VADDR(va_File_read, 0x00645CB0);
+VADDR(va_File_readByte, 0x00645DA0);
+VADDR(va_File_readWord, 0x00645E50);
+VADDR(va_File_readShort, 0x00645F00);
+VADDR(va_File_readString, 0x00645FC0);
+VADDR(va_File_read2, 0x00646010);
+VADDR(va_File_readLine, 0x006460E0);
+VADDR(va_File_readLineEx, 0x00646290);
+VADDR(va_File_write, 0x00646410);
+VADDR(va_File_write2, 0x006467A0);
+VADDR(va_File_writeByte, 0x006464A0);
+VADDR(va_File_writeWord, 0x00646520);
+VADDR(va_File_writeShort, 0x006465A0);
+VADDR(va_File_writeLong, 0x006465B0);
+VADDR(va_File_writeFloat, 0x00646630);
+VADDR(va_File_writeString, 0x006466B0);
+VADDR(va_File_writeLine, 0x00646720);
+VADDR(va_File_isOpen, 0x00646830);
+VADDR(va_File_getFilename, 0x00646850);
+VADDR(va_File_getLength, 0x00646860);
+VADDR(va_File_fileSize, 0x006468C0);
+VADDR(va_File_getNumLines, 0x006468D0);
+VADDR(va_File_skip, 0x00646940);
 
-static constexpr uintptr_t va_File_logFileTraffic = 0x007d8fa0;
-static constexpr uintptr_t va_File_fileTrafficLog = 0x007d8fa4;
-static constexpr uintptr_t va_File_createTrafficLog = 0x006452f0;
-static constexpr uintptr_t va_File_newPosition = 0x007d8fa8;
+VADDR(va_File_logFileTraffic, 0x007d8fa0);
+VADDR(va_File_fileTrafficLog, 0x007d8fa4);
+VADDR(va_File_createTrafficLog, 0x006452f0);
+VADDR(va_File_newPosition, 0x007d8fa8);
 #pragma endregion
 
 #pragma region Globals

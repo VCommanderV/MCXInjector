@@ -1,7 +1,11 @@
+#include <algorithm>
 #include "mcx_inject.hpp"
 #include "mcx/lib/a_globs.hpp"
 #include "mcx/lib/error.hpp"
 #include "mcx/lib/vfx.hpp"
+#include "mcx/lib/heap.hpp"
+#include "mcx/lib/file.hpp"
+#include "mcx/lib/a_globs.hpp"
 #include "mcx/gui/a_animation.hpp"
 #include "mcx/gui/a_system.hpp"
 
@@ -935,6 +939,213 @@ void aObject::handleEvent(aEvent* evt)
 }
 #pragma endregion
 
+#pragma region aCallback
+MCXI_CTOR_HOOK Hook_aCallback_ctor(aCallback* this_ptr, void* unused_edx)
+{
+    this_ptr->vtable = (aCallback_vtable*)MCX_RUNTIME_ADDR(va_aCallback_vftable);
+    this_ptr->destroy();
+    MOV_THIS_TO_EAX(this_ptr);
+}
+
+static void __fastcall Hook_aCallback_dtor(aCallback* this_ptr, void* unused_edx)
+{
+    this_ptr->vtable = (aCallback_vtable*)MCX_RUNTIME_ADDR(va_aCallback_vftable);
+    this_ptr->destroy();
+}
+
+static __forceinline void* __cdecl Hook_aCallback_new(size_t size)
+{
+    return g_guiHeap->malloc(size);
+}
+
+static void __forceinline __cdecl Hook_aCallback_delete(void* ptr)
+{
+    g_guiHeap->free(ptr);
+}
+
+void* aCallback::operator new(size_t size)
+{
+    return Hook_aCallback_new(size);
+}
+
+void* aCallback::operator new(size_t size, void* ptr)
+{
+    return ptr;
+}
+
+void aCallback::operator delete(void* ptr)
+{
+    Hook_aCallback_delete(ptr);
+}
+
+aCallback::aCallback()
+{
+    this->vtable = (aCallback_vtable*)MCX_RUNTIME_ADDR(va_aCallback_vftable);
+    this->destroy();
+}
+
+aCallback::~aCallback()
+{
+    this->vtable = (aCallback_vtable*)MCX_RUNTIME_ADDR(va_aCallback_vftable);
+    this->destroy();
+}
+
+void aCallback::destroy()
+{
+    this->func = nullptr;
+    this->event_id = 0;
+    this->owner = nullptr;
+}
+
+void aCallback::setExec(callback_func_t f)
+{
+    this->func = f;
+}
+
+void aCallback::setMessage(aObject* owner, int32_t event_id)
+{
+    this->owner = owner;
+    this->event_id = event_id;
+}
+
+void aCallback::ExecCallback()
+{
+    if (this->func != nullptr)
+    {
+        this->func();
+    }
+
+    if (this->event_id != 0 && this->owner != nullptr)
+    {
+        aPostMessage_ptr(this->owner, this->event_id);
+    }
+}
+#pragma endregion
+
+#pragma region aTimerManager
+aTimerManager::aTimerManager()
+{
+    for (size_t i = 0; i < MAX_TIMERS; i++)
+    {
+        this->timers[i] = nullptr;
+    }
+
+    this->num_timers = 0;
+
+}
+
+aTimerManager::~aTimerManager()
+{
+    if (this->num_timers > 0)
+    {
+        for (size_t i = 0; i < this->num_timers; i++)
+        {
+            g_guiHeap->free(this->timers[i]);
+        }
+    }
+}
+
+long aTimerManager::AddTimer(aObject* owner, short event_id, uint32_t start_time, int32_t event_type, int32_t event_param, int32_t use_scenario_time)
+{
+    HOOK_DLOGF(ATIMERMANAGER, INFO, "AddTimer(%p, %d, %d, %d, %d, %d)", owner, event_id, start_time, event_type, event_param, use_scenario_time);
+
+    if (this->num_timers >= 99)
+    {
+        return -1;
+    }
+
+    aTimer* timer = reinterpret_cast<aTimer*>(g_guiHeap->malloc(sizeof(aTimer)));
+    this->timers[this->num_timers + 1] = timer;
+
+    if (timer == nullptr)
+    {
+        return -1;
+    }
+
+    if (this->num_timers == 0)
+    {
+        g_application->addCallback(this->timers_callback);
+    }
+
+    auto ticks = use_scenario_time == FALSE ? GetTickCount() : (int)g_scenarioTime; // _ftol
+
+    timer->owner = owner;
+    timer->event_id = event_id;
+    timer->start_time = start_time;
+    timer->ticks = ticks;
+    timer->event_type = event_type;
+    timer->event_param = event_param;
+    timer->use_scenario_time = use_scenario_time;
+
+    this->num_timers += 1;
+
+    return 0;
+}
+
+long aTimerManager::AddUniqueTimer(aObject* owner, short event_id, uint32_t start_time, int32_t event_type, int32_t event_param, int32_t use_scenario_time)
+{
+    if (this->num_timers > 0)
+    {
+        for (size_t i = 0; i < this->num_timers; i++)
+        {
+            aTimer* t = this->timers[i];
+
+            if (t != nullptr
+                && t->owner == owner
+                && t->event_id == event_id
+                && t->start_time == start_time
+                && t->event_id == event_type
+                && t->event_param == event_param)
+            {
+                return -1;
+            }
+        }
+    }
+    return this->AddTimer(owner, event_id, start_time, event_type, event_param, use_scenario_time);
+}
+
+aTimer* aTimerManager::GetTimer(short timer_idx)
+{
+    //HOOK_DLOGF(ATIMERMANAGER, INFO, "GetTimer(%d)", timer_idx);
+
+    if (timer_idx < this->num_timers)
+    {
+        return this->timers[timer_idx];
+    }
+    return nullptr;
+}
+
+aTimer* aTimerManager::GetTimer2(aObject* owner, short event_id)
+{
+    //HOOK_DLOGF(ATIMERMANAGER, INFO, "GetTimer2(%p, %d)", owner, event_id);
+
+    int32_t timer_idx = 0;
+
+    if (this->num_timers > 0)
+    {
+        for (size_t i = 0; i < this->num_timers; i++)
+        {
+            aTimer* t = this->timers[i];
+            if (t != nullptr && t->owner == owner && t->event_id == event_id)
+            {
+                timer_idx = i;
+                break;
+            }
+        }
+    }
+
+    //HOOK_DLOGF(ASYSTEM, INFO, "  GetTimer2(%p, %d) => %d", owner, event_id, timer_idx);
+
+    if (timer_idx <= this->num_timers)
+    {
+        nullptr;
+    }
+
+    return this->timers[timer_idx];
+}
+
+#pragma endregion
+
 #pragma region aSystem
 long aSystem::startupDirectDraw(long width, long height, long bits_per_pixel)
 {
@@ -1392,39 +1603,389 @@ long aSystem::shutdownDirectDraw()
     return 0;
 }
 
-int aSystem::tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, int param_4)
+int aSystem::tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, BOOL convert_to_8_bit)
 {
-    if (g_FullScreen != FALSE)
-    { 
-        assert(this->ddraw_palette != nullptr);
-        assert(this->ddraw_surf1 != nullptr);
+    if (g_DAT_007ab108 == 0)
+    {
+        return 0;
+    }
+    
+    BITMAPINFO* bmi_ = (BITMAPINFO*)&g_bmi;
+    RGBQUAD* log = bmi_->bmiColors;
 
-        DDSURFACEDESC desc{};
-        desc.dwSize = sizeof(desc);
-        HRESULT hr = this->ddraw_attached_surf->GetSurfaceDesc(&desc);
-        assert(hr == DD_OK);
+    int first_entry_idx = pal_first_entry;
 
-        assert(pal_first_entry >= 0);
-        assert(pal_entries_to_change > 0);
-        assert(pal_first_entry + pal_entries_to_change <= 256);
-
-        HOOK_DLOGF(AOBJECT, INFO, "SetEntries palette=%p first=%d count=%d",
-            this->ddraw_palette,
-            pal_first_entry,
-            pal_entries_to_change);
-
-        DWORD pcaps = 0;
-        this->ddraw_palette->GetCaps(&pcaps);
-        auto log_palette = g_logicalPalette.palPalEntry;
-        DWORD num_e = g_logicalPalette.palNumEntries;
-        for (size_t i = 0; i < num_e; i++)
+    if (this->allow_sys_palette_changes == FALSE)
+    {
+        // Force only update 10-245
+        if (pal_first_entry < 10)
         {
-            PALETTEENTRY pe = log_palette[i];
-            HOOK_DLOGF(AOBJECT, INFO, "LogcalPalette[%d] = (%d,%d,%d,%d)", i, pe.peRed, pe.peGreen, pe.peBlue, pe.peFlags);
+            int skip = 10 - pal_first_entry;
+            pal += skip;
+            pal_first_entry = 10;
+            pal_entries_to_change -= skip;
+        }
+
+        if (246 < pal_entries_to_change + pal_first_entry)
+        {
+            pal_entries_to_change = 246 - pal_first_entry;
         }
     }
-    auto orig = reinterpret_cast<int(__thiscall*)(aSystem*, int, int, VFX_RGB*, int)>(GetPatchedFuncOrigFromVA((void*)va_aSystem_tweakDDPalette));
-    return orig(this, pal_first_entry, pal_entries_to_change, pal, param_4);
+
+    if (convert_to_8_bit == FALSE)
+    {
+        if (pal_first_entry < pal_entries_to_change + pal_first_entry) 
+        {
+            for (int i = pal_first_entry; i < pal_entries_to_change + pal_first_entry; i++)
+            {
+                VFX_RGB* c = &pal[0];
+
+                // Master palette
+                VFX_RGB* mp = &this->master_palette[i];
+                mp->r = c->r;
+                mp->g = c->g;
+                mp->b = c->b;
+                
+                // System palette
+                PALETTEENTRY* sys = &g_SystemPalette[i];
+                sys->peRed = c->r;
+                sys->peGreen = c->g;
+                sys->peBlue = c->b;
+
+                // DBI palette
+                RGBQUAD* dib = &log[i];
+                dib->rgbRed = c->r;
+                dib->rgbGreen = c->g;
+                dib->rgbBlue = c->b;
+
+                pal += 1;
+            }
+        }
+    }
+    else
+    {
+        if (pal_first_entry < pal_entries_to_change + pal_first_entry)
+        {
+            for (int i = pal_first_entry; i < pal_entries_to_change + pal_first_entry; i++)
+            {
+                VFX_RGB* c = &pal[0];
+                uint8_t r = c->r << 2;
+                uint8_t g = c->g << 2;
+                uint8_t b = c->b << 2;
+
+                // Master palette
+                VFX_RGB* mp = &this->master_palette[i];
+                mp->r = r;
+                mp->g = g;
+                mp->b = b;
+
+                // System palette
+                PALETTEENTRY* sys = &g_SystemPalette[i];
+                sys->peRed = r;
+                sys->peGreen = g;
+                sys->peBlue = b;
+
+                // DBI palette
+                RGBQUAD* dib = &log[i];
+                dib->rgbRed = r;
+                dib->rgbGreen = g;
+                dib->rgbBlue = b;
+
+                pal += 1;
+            }
+        }
+    }
+
+    if (this->gamma == 0)
+    {
+        if (pal_first_entry < pal_entries_to_change + pal_first_entry)
+        {
+            for (int i = pal_first_entry; i < pal_entries_to_change + pal_first_entry; i++)
+            {
+                VFX_RGB* c = &this->master_palette[i];
+
+                // System palette
+                PALETTEENTRY* sys = &g_SystemPalette[i];
+                sys->peRed = c->r;
+                sys->peGreen = c->g;
+                sys->peBlue = c->b;
+
+                // DBI palette
+                RGBQUAD* dib = &log[i];
+                dib->rgbRed = c->r;
+                dib->rgbGreen = c->g;
+                dib->rgbBlue = c->b;
+            }
+        }
+    }
+    else
+    {
+        if (pal_first_entry < pal_entries_to_change + pal_first_entry)
+        {
+            for (int i = pal_first_entry; i < pal_entries_to_change + pal_first_entry; i++)
+            {
+                VFX_RGB* c = &this->master_palette[i];
+
+                uint8_t r = g_GammaColorTranslation[c->r];
+                uint8_t g = g_GammaColorTranslation[c->g];
+                uint8_t b = g_GammaColorTranslation[c->b];
+
+                // System palette
+                PALETTEENTRY* sys = &g_SystemPalette[i];
+                sys->peRed = r;
+                sys->peGreen = g;
+                sys->peBlue = b;
+
+                // DBI palette
+                RGBQUAD* dib = &log[i];
+                dib->rgbRed = r;
+                dib->rgbGreen = g;
+                dib->rgbBlue = b;
+            }
+        }
+
+        if (this->gamma == 2)
+        {
+            for (int i = pal_first_entry; i < pal_entries_to_change + pal_first_entry; i++)
+            {
+                // System palette
+                PALETTEENTRY* sys = &g_SystemPalette[i];
+                sys->peRed = g_GammaColorTranslation[sys->peRed];
+                sys->peGreen = g_GammaColorTranslation[sys->peGreen];
+                sys->peBlue = g_GammaColorTranslation[sys->peBlue];
+
+                // DBI palette
+                RGBQUAD* dib = &log[i];
+                dib->rgbRed = g_GammaColorTranslation[dib->rgbRed];
+                dib->rgbGreen = g_GammaColorTranslation[dib->rgbGreen];
+                dib->rgbBlue = g_GammaColorTranslation[dib->rgbBlue];
+            }
+        }
+    }
+
+    if (g_FullScreen == FALSE)
+    {
+        AnimatePalette(
+            g_hPalette,
+            pal_first_entry,
+            pal_entries_to_change,
+            &g_SystemPalette[pal_first_entry]
+        );
+        SetDIBColorTable(
+            g_OffscreenBufferDC,
+            pal_first_entry,
+            pal_entries_to_change,
+            &bmi_->bmiColors[pal_first_entry]
+        );
+        return -1;
+    }
+
+    HRESULT hr = this->ddraw_palette->SetEntries(
+        0,
+        pal_first_entry,
+        pal_entries_to_change,
+        &g_SystemPalette[pal_first_entry]
+    );
+
+    return hr == DD_OK ? TRUE : FALSE;
+}
+
+void aSystem::activatePalette(uint8_t* rgb_data, int pal_first_entry, int pal_num_entries)
+{
+    VFX_RGB* pal = reinterpret_cast<VFX_RGB*>(rgb_data);
+
+    if (pal_first_entry != 0)
+    {
+        this->tweakDDPalette(pal_first_entry, pal_num_entries, &pal[pal_first_entry], -1);
+        return;
+    }
+
+    if (g_paletteRgb == nullptr)
+    {
+        g_paletteRgb = reinterpret_cast<VFX_RGB*>(g_guiHeap->malloc(sizeof(VFX_RGB) * 256));
+    }
+
+    g_globalEntries = pal_num_entries;
+    g_globalFirst = 0;
+
+    memcpy(g_paletteRgb, pal, pal_num_entries * sizeof(VFX_RGB));
+
+    return;
+}
+
+void aSystem::activatePaletteFromTGA(char* pal_file_name)
+{
+    char filepath_buf[252];
+    sprintf(filepath_buf, "%s%s", &g_artPath, pal_file_name);
+
+    File* file = new File();
+    long open_res = file->open(filepath_buf, READ, FILE_DEFAULT_MAX_CHILDREN);
+
+    if (open_res != NO_ERR)
+    {
+        strcpy(filepath_buf, pal_file_name);
+        open_res = file->open(filepath_buf, READ, FILE_DEFAULT_MAX_CHILDREN);
+        if (open_res != NO_ERR)
+        {
+            char msg_buf[250];
+            sprintf(msg_buf, "Error reading '%s'", filepath_buf);
+            GeneralMsg(msg_buf);
+            delete file;
+            return;
+        }
+    }
+
+    FileSize size = file->fileSize();
+    if (size == 0)
+    {
+        char msg_buf[250];
+        sprintf(msg_buf, "Error reading '%s'", filepath_buf);
+        GeneralMsg(msg_buf);
+        delete file;
+        return;
+    }
+
+    uint8_t* dst_buf = reinterpret_cast<uint8_t*>(g_guiHeap->malloc(size));
+ 
+    if (dst_buf != nullptr)
+    {
+        file->read2(dst_buf, size);
+        file->close();
+        TGAHeader* tga_head = reinterpret_cast<TGAHeader*>(dst_buf);
+        // Copy from TGA BGR 8-bit to RGB 6-bit(?)
+        VFX_RGB* rgb_data = reinterpret_cast<VFX_RGB*>(g_guiHeap->malloc(sizeof(VFX_RGB) * 256));
+        uint8_t* src = (uint8_t*)dst_buf + sizeof(TGAHeader);
+        for (int i = 0; i < 256; i++)
+        {
+            rgb_data[i].r = src[2] >> 2;
+            rgb_data[i].g = src[1] >> 2;
+            rgb_data[i].b = src[0] >> 2;
+            src += 3;
+        }
+        g_guiHeap->free(dst_buf);
+        this->activatePalette(reinterpret_cast<uint8_t*>(rgb_data), 0, 256);
+        InitAlphaLookup_ptr(rgb_data);
+        g_guiHeap->free(rgb_data);
+    }
+
+    delete file;
+    return;
+}
+
+void aSystem::activateSmackerPalette(uint8_t* data)
+{
+    this->tweakDDPalette(0, 256, reinterpret_cast<VFX_RGB*>(data), 0);
+}
+
+void aSystem::activatePaletteFromGIF(char* pal_file_name)
+{
+    throw new NotImplementedError();
+}
+
+void aSystem::fadeDownCurrentPalette()
+{
+    if (g_DAT_007ab108 == 0 || this->master_palette[10].r == 0)
+        return;
+
+    LARGE_INTEGER start_time{}, end_time{};
+    int total_fade = 0;
+    int fade_step = 1;
+    float fade_progress = 1.0f;
+
+    do
+    {
+        QueryPerformanceCounter(&start_time);
+
+        uint8_t* p_pal = &this->master_palette[10].g;
+
+        int i = 0;
+        auto logical_palette = &g_logicalPalette.palPalEntry;
+        BITMAPINFO* bmi_ = (BITMAPINFO*)&g_bmi;
+        RGBQUAD* log = bmi_->bmiColors;
+
+        do
+        {
+            int dr = int(((VFX_RGB*)(p_pal - 1))->r) - fade_step;
+            uint8_t r = (dr < 0) ? 0 : uint8_t(dr);
+
+            int dg = int(*p_pal) - fade_step;
+            uint8_t g = (dg < 0) ? 0 : uint8_t(dg);
+
+            int db = int(p_pal[1]) - fade_step;
+            uint8_t b = (db < 0) ? 0 : uint8_t(db);
+
+            ((VFX_RGB*)(p_pal - 1))->r = r;
+            *p_pal = g;
+            p_pal[1] = b;
+
+            logical_palette[i]->peRed = r;
+            logical_palette[i]->peGreen = g;
+            logical_palette[i]->peBlue = b;
+
+            RGBQUAD* dib = &log[i];
+            dib->rgbRed = r;
+            dib->rgbGreen = g;
+            dib->rgbBlue = b;
+
+            i += 1;
+            p_pal += 3;
+        } while (i < 236);
+
+        if (!g_FullScreen)
+        {
+            AnimatePalette(g_hPalette, DDPAL_FIRST_NON_SYSTEM_COLOR,
+                DDPAL_NUM_NON_SYSTEM_COLOR, g_SystemPalette);
+            SetDIBColorTable(g_OffscreenBufferDC, DDPAL_FIRST_NON_SYSTEM_COLOR,
+                DDPAL_NUM_NON_SYSTEM_COLOR, bmi_->bmiColors);
+        }
+        else
+        {
+            this->ddraw_palette->SetEntries(0, DDPAL_FIRST_NON_SYSTEM_COLOR,
+                DDPAL_NUM_NON_SYSTEM_COLOR, g_SystemPalette);
+        }
+
+        total_fade += fade_step;
+
+        /*QueryPerformanceCounter(&end_time);
+
+        float delta = ((float)(end_time.HighPart - start_time.HighPart) * 4.2949673e+09 +
+            (float)(int)(end_time.LowPart - start_time.LowPart)) /
+            ((float)g_countsPerSecond.LowPart + (float)g_countsPerSecond.HighPart * 4.2949673e+09);
+
+        while (delta < 0.00390625)
+        {
+            QueryPerformanceCounter(&end_time);
+            delta = ((float)(end_time.HighPart - start_time.HighPart) * 4.2949673e+09 +
+                (float)(int)(end_time.LowPart - start_time.LowPart)) /
+                ((float)g_countsPerSecond.LowPart + (float)g_countsPerSecond.HighPart * 4.2949673e+09);
+        }*/
+        double delta = 0;
+        do {
+            QueryPerformanceCounter(&end_time);
+            delta = double(end_time.QuadPart - start_time.QuadPart) / double(g_countsPerSecond.QuadPart);
+        } while (delta < 0.00390625);
+
+        fade_progress -= delta;
+        fade_step = int((fade_progress < 1.0f) ? 1.0f : fade_progress);
+
+    } while (total_fade < 256);
+}
+
+long aSystem::addCallback(aCallback* cb)
+{
+    if (this->num_callbacks == 98)
+    {
+        return 3;
+    }
+
+    if (cb == nullptr)
+    {
+        return 2;
+    }
+
+    this->callbacks[this->num_callbacks] = cb;
+    this->num_callbacks += 1;
+    return 0;
 }
 #pragma endregion
 
@@ -1445,6 +2006,27 @@ static void __cdecl aRedrawScreen()
     }
 }
 
+void __cdecl InitFullScreen(void)
+{
+    if (g_FullScreen != FALSE || g_application->ddraw2 == nullptr)
+    {
+        return;
+    }
+
+    EnterMouseCritSec();
+
+    WINDOWPLACEMENT* wp = &g_WindowPlacement;
+    g_DAT_007ab108 = 0;
+    static_assert(sizeof(WINDOWPLACEMENT) == 44);
+    wp->length = sizeof(WINDOWPLACEMENT);
+    GetWindowPlacement(g_application->window_handle, wp);
+    SetWindowLongA(g_application->window_handle, GWL_STYLE, WS_POPUP);
+    g_SavedPosition = TRUE;
+    g_FullScreen = TRUE;
+    g_application->resetDirectDraw(g_Width, g_Height, 8);
+
+    LeaveMouseCritSec();
+}
 
 void __cdecl InitWindowMode(void)
 {
@@ -1484,7 +2066,7 @@ void __cdecl InitWindowMode(void)
         );
     }
 
-    assert(sizeof(WINDOWPLACEMENT) == 44);
+    static_assert(sizeof(WINDOWPLACEMENT) == 44);
     wp->length = sizeof(WINDOWPLACEMENT);
     wp->showCmd = TRUE;
     SetWindowPlacement(g_application->window_handle, wp);
@@ -1497,7 +2079,6 @@ void __cdecl InitWindowMode(void)
         g_InMouseCritSec = FALSE;
     }
 }
-
 
 static AutoFuncPatchRegister reg_aObject{
     "aObject",
@@ -1563,7 +2144,39 @@ static AutoFuncPatchRegister reg_aSystem{
         { (void*)va_aSystem_startupDirectDraw, GetMemberPtr(&aSystem::startupDirectDraw)},
         { (void*)va_aSystem_resetDirectDraw, GetMemberPtr(&aSystem::resetDirectDraw)},
         { (void*)va_aSystem_shutdownDirectDraw, GetMemberPtr(&aSystem::shutdownDirectDraw)},
-        // { (void*)va_InitWindowMode, (void*)InitWindowMode},
+        { (void*)va_aSystem_addCallback, GetMemberPtr(&aSystem::addCallback)},
+        { (void*)va_InitWindowMode, (void*)InitWindowMode},
+        { (void*)va_InitFullScreen, (void*)InitFullScreen},
         { (void*)va_aSystem_tweakDDPalette, GetMemberPtr(&aSystem::tweakDDPalette)},
+        { (void*)va_aSystem_activatePalette, GetMemberPtr(&aSystem::activatePalette)},
+        { (void*)va_aSystem_activatePaletteFromTGA, GetMemberPtr(&aSystem::activatePaletteFromTGA)},
+        { (void*)va_aSystem_activatePaletteFromGIF, GetMemberPtr(&aSystem::activatePaletteFromGIF)},
+        { (void*)va_aSystem_activateSmackerPalette, GetMemberPtr(&aSystem::activateSmackerPalette)},
+        { (void*)va_aSystem_fadeDownCurrentPalette, GetMemberPtr(&aSystem::fadeDownCurrentPalette)},
+    }
+};
+
+
+static AutoFuncPatchRegister reg_aTimerManager{
+    "aTimerManager",
+    {
+        { (void*)va_aTimerManager_AddTimer, GetMemberPtr(&aTimerManager::AddTimer)},
+        { (void*)va_aTimerManager_AddUniqueTimer, GetMemberPtr(&aTimerManager::AddUniqueTimer)},
+        { (void*)va_aTimerManager_GetTimer, GetMemberPtr(&aTimerManager::GetTimer)},
+        { (void*)va_aTimerManager_GetTimer2, GetMemberPtr(&aTimerManager::GetTimer2)},
+    }
+};
+
+static AutoFuncPatchRegister reg_aCallback{
+    "aCallback",
+    {
+        { (void*)va_aCallback_ctor, (void*)Hook_aCallback_ctor },
+        { (void*)va_aCallback_dtor, (void*)Hook_aCallback_dtor },
+        { (void*)va_aCallback_operator_new, (void*)Hook_aCallback_new},
+        { (void*)va_aCallback_operator_delete, (void*)Hook_aCallback_delete},
+        { (void*)va_aCallback_ExecFunc, GetMemberPtr(&aCallback::ExecCallback)},
+        { (void*)va_aCallback_destroy, GetMemberPtr(&aCallback::destroy)},
+        { (void*)va_aCallback_setExec, GetMemberPtr(&aCallback::setExec)},
+        { (void*)va_aCallback_setMessage, GetMemberPtr(&aCallback::setMessage)},
     }
 };

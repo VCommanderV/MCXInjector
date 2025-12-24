@@ -91,26 +91,26 @@ public:
 
 
 #pragma region Methods VAs
-static constexpr uintptr_t va_FastFile_operator_new = 0x00644d10;
-static constexpr uintptr_t va_FastFile_operator_delete = 0x00644d30;
+VADDR(va_FastFile_operator_new, 0x00644d10);
+VADDR(va_FastFile_operator_delete, 0x00644d30);
 
-static constexpr uintptr_t va_FastFile_ctor = 0x00644d50;
-static constexpr uintptr_t va_FastFile_dtor = 0x00644d70;
+VADDR(va_FastFile_ctor, 0x00644d50);
+VADDR(va_FastFile_dtor, 0x00644d70);
 
-static constexpr uintptr_t va_FastFile_open = 0x00644d80;
-static constexpr uintptr_t va_FastFile_close = 0x00644ed0;
+VADDR(va_FastFile_open, 0x00644d80);
+VADDR(va_FastFile_close, 0x00644ed0);
 
-static constexpr uintptr_t va_FastFile_openFast = 0x00644f40;
-static constexpr uintptr_t va_FastFile_closeFast = 0x00644fb0;
-static constexpr uintptr_t va_FastFile_seekFast = 0x00644fe0;
-static constexpr uintptr_t va_FastFile_readFast = 0x006450f0;
+VADDR(va_FastFile_openFast, 0x00644f40);
+VADDR(va_FastFile_closeFast, 0x00644fb0);
+VADDR(va_FastFile_seekFast, 0x00644fe0);
+VADDR(va_FastFile_readFast, 0x006450f0);
 
-static constexpr uintptr_t va_FastFile_tellFast = 0x00645260;
-static constexpr uintptr_t va_FastFile_sizeFast = 0x00645290;
-static constexpr uintptr_t va_FastFile_lzSizeFast = 0x006452c0;
+VADDR(va_FastFile_tellFast, 0x00645260);
+VADDR(va_FastFile_sizeFast, 0x00645290);
+VADDR(va_FastFile_lzSizeFast, 0x006452c0);
 
-static constexpr uintptr_t va_FastFile_fastFiles = 0x0080a854;
-static constexpr uintptr_t va_FastFile_numFastFiles = 0x0080a858;
+VADDR(va_FastFile_fastFiles, 0x0080a854);
+VADDR(va_FastFile_numFastFiles, 0x0080a858);
 # pragma endregion
 
 # pragma region Globals

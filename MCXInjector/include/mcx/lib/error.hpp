@@ -1,12 +1,12 @@
 #pragma once
 #include "mcx_inject.hpp"
 
-static constexpr uintptr_t va_ErrorHandler = 0x0078def4;
-static constexpr uintptr_t va_Assert = 0x00644250;
-static constexpr uintptr_t va_Fatal = 0x00644180;
-static constexpr uintptr_t va_GeneralMsg = 0x006440b0;
+VADDR(va_ErrorHandler, 0x0078def4);
+VADDR(va_Assert, 0x00644250);
+VADDR(va_Fatal, 0x00644180);
+VADDR(va_GeneralMsg, 0x006440b0);
 
-static constexpr uintptr_t va_GlobalLastError = 0x007d8f9c;
+VADDR(va_GlobalLastError, 0x007d8f9c);
 
 OBJ_REF(DWORD, g_LastError, va_GlobalLastError);
 

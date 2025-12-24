@@ -87,17 +87,17 @@ public:
 };
 
 #pragma region VAs
-static constexpr uintptr_t va_aPort_screenPort = 0x007aa7d0;
-static constexpr uintptr_t va_aPort_vftable = 0x0077aa20;
-static constexpr uintptr_t va_aPort_ctor = 0x0060c440;
-static constexpr uintptr_t va_aPort_dtor = 0x0060c460;
-static constexpr uintptr_t va_aPort_destroy = 0x0060ca70;
-static constexpr uintptr_t va_aPort_resize = 0x0060cad0;
-static constexpr uintptr_t va_aPort_operator_new = 0x0060c400;
-static constexpr uintptr_t va_aPort_operator_delete = 0x0060c420;
-static constexpr uintptr_t va_aPort_init = 0x0060c470;
-static constexpr uintptr_t va_aPort_init2 = 0x0060c580;
-static constexpr uintptr_t va_aPort_init3 = 0x0060c6e0;
+VADDR(va_aPort_screenPort, 0x007aa7d0);
+VADDR(va_aPort_vftable, 0x0077aa20);
+VADDR(va_aPort_ctor, 0x0060c440);
+VADDR(va_aPort_dtor, 0x0060c460);
+VADDR(va_aPort_destroy, 0x0060ca70);
+VADDR(va_aPort_resize, 0x0060cad0);
+VADDR(va_aPort_operator_new, 0x0060c400);
+VADDR(va_aPort_operator_delete, 0x0060c420);
+VADDR(va_aPort_init, 0x0060c470);
+VADDR(va_aPort_init2, 0x0060c580);
+VADDR(va_aPort_init3, 0x0060c6e0);
 #pragma endregion
 
 #pragma region Globals

@@ -76,21 +76,21 @@ public:
 };
 
 #pragma region VAs
-static constexpr uintptr_t va_aAnimation_ctor = 0x00609450;
-static constexpr uintptr_t va_aAnimation_dtor = 0x00609470;
-static constexpr uintptr_t va_aAnimation_init = 0x00609490;
-static constexpr uintptr_t va_aAnimation_shapeTable = 0x00609520;
-static constexpr uintptr_t va_aAnimation_loadShape = 0x00609530;
-static constexpr uintptr_t va_aAnimation_drawFrame = 0x006096b0;
-static constexpr uintptr_t va_aAnimation_draw = 0x006096e0;
-static constexpr uintptr_t va_aAnimation_width = 0x00609690;
-static constexpr uintptr_t va_aAnimation_currentFrame = 0x00609790;
-static constexpr uintptr_t va_aAnimation_nextFrame = 0x00609750;
-static constexpr uintptr_t va_aAnimation_setFrame = 0x00609770;
-static constexpr uintptr_t va_aAnimation_frameRate = 0x006097b0;
-static constexpr uintptr_t va_aAnimation_setFrameRate = 0x00609780;
-static constexpr uintptr_t va_aAnimation_numberOfFrames = 0x006097a0;
-static constexpr uintptr_t va_aAnimation_reset = 0x006094e0;
+VADDR(va_aAnimation_ctor, 0x00609450);
+VADDR(va_aAnimation_dtor, 0x00609470);
+VADDR(va_aAnimation_init, 0x00609490);
+VADDR(va_aAnimation_shapeTable, 0x00609520);
+VADDR(va_aAnimation_loadShape, 0x00609530);
+VADDR(va_aAnimation_drawFrame, 0x006096b0);
+VADDR(va_aAnimation_draw, 0x006096e0);
+VADDR(va_aAnimation_width, 0x00609690);
+VADDR(va_aAnimation_currentFrame, 0x00609790);
+VADDR(va_aAnimation_nextFrame, 0x00609750);
+VADDR(va_aAnimation_setFrame, 0x00609770);
+VADDR(va_aAnimation_frameRate, 0x006097b0);
+VADDR(va_aAnimation_setFrameRate, 0x00609780);
+VADDR(va_aAnimation_numberOfFrames, 0x006097a0);
+VADDR(va_aAnimation_reset, 0x006094e0);
 #pragma endregion
 
 #pragma region Layout asserts

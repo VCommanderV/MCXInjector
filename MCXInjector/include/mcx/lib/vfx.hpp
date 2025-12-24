@@ -61,9 +61,9 @@ long __cdecl _VFX_shape_bounds(void* shape_table, long shape_idx);
 long __cdecl _VFX_panel_copy(_pane* src_pane, int src_x, int src_y, _pane* dst_pane, int dst_x, int dst_y, unsigned int flag);
 
 #pragma region VAs
-static constexpr uintptr_t va_VFX_panel_copy = 0x0076f8ab;
-static constexpr uintptr_t va_VFX_draw_line = 0x0076cdfd;
-static constexpr uintptr_t va_VFX_pane_wipe = 0x0076f7cc;
+VADDR(va_VFX_panel_copy, 0x0076f8ab);
+VADDR(va_VFX_draw_line, 0x0076cdfd);
+VADDR(va_VFX_pane_wipe, 0x0076f7cc);
 #pragma endregion
 
 #pragma region FuncPtrs

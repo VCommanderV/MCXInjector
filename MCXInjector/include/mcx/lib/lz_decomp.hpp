@@ -1,5 +1,7 @@
+#pragma once
 #include <cstddef>
 #include <cstdint>
+#include "mcx_inject.hpp"
 
 // Buffer of size LZPacketBufferSize or packet uncompressed size if larger.
 static unsigned char* g_LZPacketBuffer;
@@ -35,4 +37,4 @@ long __cdecl LZDecomp(
 	unsigned char* uncompressed_buf,
 	unsigned long uncompressed_size);
 
-static constexpr uintptr_t va_LZDecomp = 0x0064cc80;
+VADDR(va_LZDecomp, 0x0064cc80);

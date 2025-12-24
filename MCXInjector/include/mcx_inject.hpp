@@ -15,6 +15,8 @@
 #include "absl/log/log.h"
 #include <absl/strings/str_format.h>
 
+#define VADDR(name, addr) static constexpr uintptr_t name = addr
+
 #define LOG_DEBUG DLOG(INFO)
 
 #define LOGF_DEBUG(fmt, ...) DLOG(INFO) << absl::StrFormat(fmt, __VA_ARGS__)
@@ -94,6 +96,12 @@ template<typename Fn>
 inline Fn FUN_PTR(uintptr_t addr) {
     return reinterpret_cast<Fn>(GetRuntimeAddr(addr));
 }
+
+class NotImplementedError : public std::logic_error
+{
+public:
+    NotImplementedError() : std::logic_error("Function not yet implemented") { };
+};
 
 struct VTableKey {
     void** vtable;
