@@ -3,7 +3,7 @@
 #include "mcx/lib/error.hpp"
 #include "mcx/lib/vfx.hpp"
 #include "mcx/gui/a_animation.hpp"
-#include "mcx/gui/a_object.hpp"
+#include "mcx/gui/a_system.hpp"
 
 #pragma region aObject
 MCXI_CTOR_HOOK Hook_aObject_ctor(aObject* this_ptr, void* unused_edx)
@@ -415,7 +415,7 @@ void aObject::display()
         }
         else {
             // explicitly hidden, check if still intersects application window
-            aObject* application = g_application; // TODO: it's aSystem
+            aObject* application = reinterpret_cast<aObject*>(g_application);
             int32_t app_width = application->vtable->getWidth(application);
             int32_t app_height = application->vtable->getHeight(application);
             int intersects = this->vtable->rectIntersect(this, 0, 0, app_width, app_height);
@@ -480,7 +480,7 @@ void aObject::draw()
 
 aObject* aObject::findObject(long pos_x, long pos_y)
 {
-    HOOK_DLOGF(AOBJECT, INFO, "aObject::findObject(%p,%d,%d)", this, pos_x, pos_y);
+    // HOOK_DLOGF(AOBJECT, INFO, "aObject::findObject(%p,%d,%d)", this, pos_x, pos_y);
 
     if (this->state != ICONIZED)
     {
@@ -568,7 +568,7 @@ void aObject::HideMe(BOOL hide)
         case DIRECTION_RIGHT:
             {
                 int32_t global_x = this->vtable->globalX(this);
-                aObject* application = g_application;
+                aObject* application = reinterpret_cast<aObject*>(g_application);
                 int32_t app_width = application->vtable->getWidth(application);
                 this->animation_offset = app_width - global_x;
                 this->hidden = hide;
@@ -577,7 +577,7 @@ void aObject::HideMe(BOOL hide)
         case DIRECTION_DOWN:
             {
                 int32_t global_y = this->vtable->globalY(this);
-                aObject* application = g_application;
+                aObject* application = reinterpret_cast<aObject*>(g_application);
                 int32_t app_height = application->vtable->getHeight(application);
                 this->animation_offset = app_height - global_y;
                 this->hidden = hide;
@@ -895,23 +895,6 @@ void aObject::paint()
     }
 }
 
-static void __cdecl aRedrawScreen()
-{
-    aObject* screen_window = g_screenWindow;
-    int32_t num_children = screen_window->vtable->numberOfChildren(screen_window);
-
-    if (num_children <= 0)
-    {
-        return;
-    }
-
-    for (size_t i = 0; i < num_children; i++)
-    {
-        aObject* child = screen_window->child(i);
-        child->vtable->draw(child);
-    }
-}
-
 void aObject::handleEvent(aEvent* evt)
 {
     if (evt->event_id == 0x1)
@@ -1164,6 +1147,251 @@ long aSystem::startupDirectDraw(long width, long height, long bits_per_pixel)
     return 0;
 }
 
+long aSystem::resetDirectDraw(long width, long height, long bit_depth)
+{
+    if (g_mouseThreadStarted != FALSE)
+    {
+        EnterCriticalSection(&g_MouseCritSec);
+        g_InMouseCritSec = TRUE;
+    }
+
+    if (this->ddraw_surf1 != nullptr)
+    {
+        if (g_BitDepth == 8)
+        {
+            aLockScreen_ptr();
+            _VFX_pane_wipe_PTR(g_screenPort->frame, 0);
+        }
+        else 
+        {
+            aLockScreen_ptr();
+            _window* window = g_screenPort->frame->window;
+            size_t len = window->height_zero_based * window->width_zero_based;
+            uint8_t* pixels = window->pixels;
+            memset(pixels, 0, len);
+        }
+        aUnlockScreen_ptr();
+    }
+
+    if (this->ddraw_surf1 != nullptr)
+    {
+        if (bit_depth != 16)
+        {
+            if (g_FullScreen == FALSE)
+            {
+                SetWindowLongA(
+                    this->window_handle,
+                    GWL_STYLE,
+                    WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX
+                );
+            }
+            this->ddraw2->SetCooperativeLevel(this->window_handle, DDSCL_NORMAL);
+        }
+
+        this->ddraw_surf1->Release();
+        this->ddraw_surf1 = nullptr;
+    }
+
+    if (this->ddraw_palette != nullptr)
+    {
+        this->ddraw_palette->Release();
+        this->ddraw_palette = nullptr;
+    }
+
+    g_Width = width;
+    g_Height = height;
+    g_BitDepth = bit_depth;
+    g_DAT_007ab0d4 = 0;
+    this->ddraw_surf1 = nullptr; 
+    this->ddraw_attached_surf = nullptr;
+
+    if (g_FullScreen == FALSE)
+    {
+        // Update GDI palette entries 10-245
+        // iStart/iStart index determines from what entry to update,
+        // while logical_palette->palPalEntry[10] / bmi_->bmiColors[10]
+        // what are the new colors to copy from (aka 10-245 in the logical palette).
+        LogicalPalette* logical_palette = &g_logicalPalette;
+        AnimatePalette(
+            g_hPalette,
+            DDPAL_FIRST_NON_SYSTEM_COLOR,
+            DDPAL_NUM_NON_SYSTEM_COLOR,
+            &logical_palette->palPalEntry[10]
+        );
+        BITMAPINFO* bmi_ = (BITMAPINFO*)&g_bmi;
+        SetDIBColorTable(
+            g_OffscreenBufferDC,
+            DDPAL_FIRST_NON_SYSTEM_COLOR,
+            DDPAL_NUM_NON_SYSTEM_COLOR,
+            &bmi_->bmiColors[10]
+        );
+    }
+    else
+    {
+        HRESULT res = this->ddraw2->SetCooperativeLevel(
+            this->window_handle,
+            DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN | DDSCL_ALLOWREBOOT
+        );
+
+        if (res != DD_OK)
+        {
+            Fatal(res, (char*)" Unable to Set Exclusive Mode ", nullptr);
+        }
+
+        ShowWindow(this->window_handle, SW_SHOW);
+
+        res = this->ddraw2->SetDisplayMode(width, height, bit_depth, 0, 0);
+
+        if (res != DD_OK)
+        {
+            Fatal(res, (char*)" Unable to Set Display Mode ", nullptr);
+        }
+
+        DDSURFACEDESC surf_desc;
+        memset(&surf_desc, 0, sizeof(DDSURFACEDESC));
+        surf_desc.dwSize = sizeof(DDSURFACEDESC);
+        surf_desc.dwFlags = DDSD_BACKBUFFERCOUNT | DDSD_CAPS;
+        surf_desc.dwBackBufferCount = 2;
+
+        assert(surf_desc.dwFlags == 33);
+
+        // Fullscreen primary surface with flipping (front + back buffers) stored in video memory
+        surf_desc.ddsCaps.dwCaps =
+            DDSCAPS_PRIMARYSURFACE |
+            DDSCAPS_FLIP |
+            DDSCAPS_COMPLEX |
+            DDSCAPS_VIDEOMEMORY;
+
+        assert(surf_desc.ddsCaps.dwCaps == 16920);
+
+        int fallback = 2;
+
+        res = this->ddraw2->CreateSurface(&surf_desc, &this->ddraw_surf1, 0);
+
+        if (res != DD_OK)
+        {
+            fallback = 1;
+            surf_desc.dwBackBufferCount = 1;
+            res = this->ddraw2->CreateSurface(&surf_desc, &this->ddraw_surf1, 0);
+
+            if (res != DD_OK)
+            {
+                fallback = 0;
+                surf_desc.dwBackBufferCount = 0;
+                surf_desc.dwFlags = DDSD_CAPS;
+                surf_desc.ddsCaps.dwCaps = DDSCAPS_VIDEOMEMORY | DDSCAPS_PRIMARYSURFACE;
+                assert(surf_desc.ddsCaps.dwCaps == 16896);
+
+                res = this->ddraw2->CreateSurface(&surf_desc, &this->ddraw_surf1, 0);
+
+                if (res != DD_OK)
+                {
+
+                    surf_desc.ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE;
+                    res = this->ddraw2->CreateSurface(&surf_desc, &this->ddraw_surf1, 0);
+
+                    if (res != DD_OK)
+                    {
+                        Fatal(res, (char*)"Unable to Create Primary Surface", nullptr);
+                    }
+                }
+            }
+        }
+        g_Width = width;
+        g_Height = height;
+        g_DAT_007ab0d4 = fallback;
+
+        //this->ddraw_attached_surf = nullptr;
+
+        if (fallback != 0)
+        {
+            DDSCAPS ddcaps;
+            memset(&ddcaps, 0, sizeof(DDSCAPS));
+            ddcaps.dwCaps = DDSCAPS_BACKBUFFER;
+            this->ddraw_surf1->GetAttachedSurface(&ddcaps, &this->ddraw_attached_surf);
+        }
+
+        if (this->ddraw_surf1 != nullptr)
+        {
+            if (g_BitDepth == 8)
+            {
+                aLockScreen_ptr();
+                _VFX_pane_wipe_PTR(g_screenPort->frame, 0);
+                aUnlockScreen_ptr();
+            }
+            else {
+                aLockScreen_ptr();
+                _window* window = g_screenPort->frame->window;
+                size_t len = window->height_zero_based * window->width_zero_based;
+                uint8_t* pixels = window->pixels;
+                memset(pixels, 0, len);
+                aUnlockScreen_ptr();
+            }
+        }
+
+        if (bit_depth == 8)
+        {
+            res = this->ddraw2->CreatePalette(DDPCAPS_8BIT, g_SystemPalette, &this->ddraw_palette, 0);
+
+            if (res != DD_OK)
+            {
+                Fatal(res, (char*)" Unable to Create Primary Palette ", nullptr);
+            }
+
+            res = this->ddraw_surf1->SetPalette(this->ddraw_palette);
+
+            if (res == DDERR_SURFACELOST)
+            {
+                this->ddraw_surf1->Restore();
+                res = this->ddraw_surf1->SetPalette(this->ddraw_palette);
+            }
+
+            if (res != DD_OK)
+            {
+                Fatal(res, (char*)" Unable to Attach Palette to Primary Surface ", nullptr);
+            }
+        }
+    }
+
+    g_DAT_007ab108 = 1;
+
+    if (g_mouseThreadStarted != FALSE)
+    {
+        LeaveCriticalSection(&g_MouseCritSec);
+        g_InMouseCritSec = FALSE;
+    }
+
+    return 0;
+}
+
+long aSystem::shutdownDirectDraw()
+{
+    if (this->ddraw2 != nullptr)
+    {
+        this->ddraw2->SetCooperativeLevel(this->window_handle, DDSCL_NORMAL);
+        this->ddraw2->Release();
+        this->ddraw2 = nullptr;
+    }
+
+    if (this->ddraw1 != nullptr)
+    {
+        this->ddraw1->Release();
+        this->ddraw1 = nullptr;
+    }
+
+    SelectObject(g_OffscreenBufferDC, g_OffScreenhOldBitmap);
+    DeleteDC(g_OffscreenBufferDC);
+    DeleteObject(g_OffScreenhOldBitmap);
+    DeleteObject(g_OffScreenhDIBSection);
+
+    g_OffscreenBufferDC = nullptr;
+    g_OffScreenhDIBSection = nullptr;
+    g_OffScreenhOldBitmap = nullptr;
+    g_DAT_007ab108 = 0;
+
+    return 0;
+}
+
 int aSystem::tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, int param_4)
 {
     if (g_FullScreen != FALSE)
@@ -1199,6 +1427,77 @@ int aSystem::tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_
     return orig(this, pal_first_entry, pal_entries_to_change, pal, param_4);
 }
 #pragma endregion
+
+static void __cdecl aRedrawScreen()
+{
+    aObject* screen_window = g_screenWindow;
+    int32_t num_children = screen_window->vtable->numberOfChildren(screen_window);
+
+    if (num_children <= 0)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < num_children; i++)
+    {
+        aObject* child = screen_window->child(i);
+        child->vtable->draw(child);
+    }
+}
+
+
+void __cdecl InitWindowMode(void)
+{
+    if (g_FullScreen == FALSE) // alrady windowed
+    {
+        return;
+    }
+
+    if (g_mouseThreadStarted != FALSE)
+    {
+        EnterCriticalSection(&g_MouseCritSec);
+        g_InMouseCritSec = TRUE;
+    }
+
+    g_FullScreen = FALSE;
+    g_application->resetDirectDraw(g_Width, g_Height, 8);
+    g_DAT_007ab108 = 0;
+        
+    WINDOWPLACEMENT* wp = &g_WindowPlacement;
+
+    if (g_SavedPosition == FALSE)
+    {
+        memset(wp, 0, sizeof(WINDOWPLACEMENT));
+        int32_t screen_w = GetSystemMetrics(SM_CXSCREEN);
+        int32_t screen_h = GetSystemMetrics(SM_CYSCREEN);
+        SetRect(
+            &wp->rcNormalPosition,
+            (screen_w - g_Width) / 2, // left
+            (screen_h - g_Height) / 2, // top
+            (screen_w + g_Width) / 2, // right
+            (screen_h + g_Height) / 2 // bottom
+        );
+        AdjustWindowRect(
+            &wp->rcNormalPosition,
+            WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
+            0
+        );
+    }
+
+    assert(sizeof(WINDOWPLACEMENT) == 44);
+    wp->length = sizeof(WINDOWPLACEMENT);
+    wp->showCmd = TRUE;
+    SetWindowPlacement(g_application->window_handle, wp);
+    ShowWindow(g_application->window_handle, SW_SHOW);
+    g_DAT_007ab108 = 1;
+
+    if (g_mouseThreadStarted != FALSE)
+    {
+        LeaveCriticalSection(&g_MouseCritSec);
+        g_InMouseCritSec = FALSE;
+    }
+}
+
 
 static AutoFuncPatchRegister reg_aObject{
     "aObject",
@@ -1262,6 +1561,9 @@ static AutoFuncPatchRegister reg_aSystem{
     "aSystem",
     {
         { (void*)va_aSystem_startupDirectDraw, GetMemberPtr(&aSystem::startupDirectDraw)},
+        { (void*)va_aSystem_resetDirectDraw, GetMemberPtr(&aSystem::resetDirectDraw)},
+        { (void*)va_aSystem_shutdownDirectDraw, GetMemberPtr(&aSystem::shutdownDirectDraw)},
+        // { (void*)va_InitWindowMode, (void*)InitWindowMode},
         { (void*)va_aSystem_tweakDDPalette, GetMemberPtr(&aSystem::tweakDDPalette)},
     }
 };

@@ -26,6 +26,15 @@
 
 static constexpr auto MAX_CHILDREN = 255;
 
+// In a windows 256 color palette:
+//  0–9:     system colors (low indices)
+//  246–255: system colors (high indices)
+//  10–245:  free/application defined colors
+//
+// See: 
+static constexpr uint32_t DDPAL_FIRST_NON_SYSTEM_COLOR = 10;
+static constexpr uint32_t DDPAL_NUM_NON_SYSTEM_COLOR = 256 - 20;
+
 class aObject;
 
 class aEvent
@@ -380,7 +389,7 @@ public:
     IDirectDraw* ddraw1;                       // 0x4
     IDirectDrawSurface* ddraw_surf1;           // 0x4b4
     IDirectDrawSurface* ddraw_attached_surf;   // 0x4b8
-    int32_t field_0x4c0; // 0x4bc
+    int32_t field_0x4bc; // 0x4bc
     IDirectDrawPalette* ddraw_palette;         // 0x4c0
     int32_t field_0x4c4; // 0x4c4
     int32_t field_0x4c8; // 0x4c8
@@ -789,6 +798,12 @@ public:
     // public: long __thiscall aSystem::startupDirectDraw(long,long,long)
     long startupDirectDraw(long width, long height, long bits_per_pixel);
 
+    // public: long __thiscall aSystem::resetDirectDraw(long,long,long)
+    long resetDirectDraw(long width, long height, long bits_per_pixel);
+
+    // public: long __thiscall aSystem::shutdownDirectDraw(void)
+    long shutdownDirectDraw();
+
     // public: int __thiscall aSystem::tweakDDPalette(int,int,struct VFX_RGB *,int)
     int tweakDDPalette(int pal_first_entry, int pal_entries_to_change, VFX_RGB* pal, int param_4);
 };
@@ -879,6 +894,8 @@ static constexpr uintptr_t va_aObject_vector_deleting_destructor = 0x0060e4a0;
 
 static constexpr uintptr_t va_aSystem_vftable = 0x0077af08;
 static constexpr uintptr_t va_aSystem_startupDirectDraw = 0x0060db20;
+static constexpr uintptr_t va_aSystem_resetDirectDraw = 0x0060df40;
+static constexpr uintptr_t va_aSystem_shutdownDirectDraw = 0x0060e330;
 static constexpr uintptr_t va_aSystem_tweakDDPalette = 0x00614a70;
 
 static constexpr uintptr_t va_bmi = 0x007a9f90;
@@ -900,10 +917,25 @@ static constexpr uintptr_t va_DAT_007ab0d4 = 0x007ab0d4;
 static constexpr uintptr_t va_DAT_007ab104 = 0x007ab104;
 static constexpr uintptr_t va_DAT_007ab108 = 0x007ab108;
 static constexpr uintptr_t va_SystemPalette = 0x007aa3c4; // va_DAT_007aa3c4
+static constexpr uintptr_t va_mouseThreadStarted = 0x007bbbc0;
+static constexpr uintptr_t va_MouseCritSec = 0x007bbb88;
+static constexpr uintptr_t va_InMouseCritSec = 0x007bbbb0;
+static constexpr uintptr_t va_BitDepth = 0x00789f78;
+static constexpr uintptr_t va_aLockScreen = 0x00610450;
+static constexpr uintptr_t va_aUnlockScreen = 0x00610530;
+static constexpr uintptr_t va_InitWindowMode = 0x006125d0;
+static constexpr uintptr_t va_WindowPlacement = 0x007a9ed8;
+static constexpr uintptr_t va_SavedPosition = 0x007ab110;
 #pragma endregion
 
 #pragma region Globals
+OBJ_REF(BOOL, g_SavedPosition, va_SavedPosition);
+OBJ_REF(WINDOWPLACEMENT, g_WindowPlacement, va_WindowPlacement);
+OBJ_REF(RTL_CRITICAL_SECTION, g_MouseCritSec, va_MouseCritSec);
 OBJ_REF(BOOL, g_FullScreen, va_FullScreen);
+OBJ_REF(BOOL, g_mouseThreadStarted, va_mouseThreadStarted);
+OBJ_REF(BOOL, g_InMouseCritSec, va_InMouseCritSec);
+OBJ_REF(int32_t, g_BitDepth, va_BitDepth);
 OBJ_REF(int32_t, g_Width, va_Width);
 OBJ_REF(int32_t, g_Height, va_Height);
 PTR_REF(aObject, g_screenWindow, va_screenWindow);
@@ -921,9 +953,12 @@ ARR_REF(PALETTEENTRY, 256, g_SystemPalette, va_SystemPalette);
 PTR_REF(void, g_DIBBits, va_DAT_007ab104);
 
 static void __cdecl aRedrawScreen();
+static void __cdecl InitWindowMode(void);
+inline auto aLockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aLockScreen);
+inline auto aUnlockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aUnlockScreen);
 #pragma endregion
 
-#pragma region Layout asserts
+#pragma region Layout asserts (aObject)
 ASSERT_SIZE(aObject, 0x4AC);
 ASSERT_ALIGN(aObject, 0x4);
 ASSERT_FIELD_OFFSET(aObject, vtable, 0x00);
@@ -971,4 +1006,16 @@ ASSERT_FIELD_OFFSET(aObject, paint_routine, 0x49C);
 ASSERT_FIELD_OFFSET(aObject, event_routine, 0x4A0);
 ASSERT_FIELD_OFFSET(aObject, drop_target_num, 0x4A4);
 ASSERT_FIELD_OFFSET(aObject, field_0x4a8_maybe_rect_arr, 0x4A8);
+#pragma endregion
+
+#pragma region Layout asserts (aObject)
+ASSERT_SIZE(aSystem, 0xb0c);
+ASSERT_ALIGN(aSystem, 0x4);
+
+ASSERT_FIELD_OFFSET(aSystem, ddraw2, 0x4ac);
+ASSERT_FIELD_OFFSET(aSystem, ddraw1, 0x4b0);
+ASSERT_FIELD_OFFSET(aSystem, ddraw_surf1, 0x4b4);
+ASSERT_FIELD_OFFSET(aSystem, ddraw_attached_surf, 0x4b8);
+ASSERT_FIELD_OFFSET(aSystem, field_0x4bc, 0x4bc);
+ASSERT_FIELD_OFFSET(aSystem, ddraw_palette, 0x4c0);
 #pragma endregion

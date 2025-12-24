@@ -12,7 +12,7 @@ file(GLOB_RECURSE MCXINJECTOR_HEADERS CONFIGURE_DEPENDS
 add_library(MCXInjector SHARED
     ${MCXINJECTOR_SOURCES}
     ${MCXINJECTOR_HEADERS}
- "src/mcx/lib/vfx_map_polygon.cpp")
+)
 
 target_include_directories(MCXInjector PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
