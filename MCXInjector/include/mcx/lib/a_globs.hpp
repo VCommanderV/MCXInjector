@@ -5,8 +5,10 @@
 
 VADDR(va_currPlanet, 0x00807fe8);
 VADDR(va_artPath, 0x007ab080);
+VADDR(va_fontPath, 0x007aaeec);
 VADDR(va_application, 0x0007aae80);
 
 OBJ_REF(long, g_currPlanet, va_currPlanet);
 OBJ_REF(char, g_artPath, va_artPath);
-PTR_REF(aSystem, g_application, va_application); // TODO: it is aSystem actually
+OBJ_REF(char, g_fontPath, va_fontPath);
+PTR_REF(aSystem, g_application, va_application);

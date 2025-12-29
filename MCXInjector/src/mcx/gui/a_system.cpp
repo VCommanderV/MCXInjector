@@ -1022,6 +1022,27 @@ void aCallback::ExecCallback()
 }
 #pragma endregion
 
+#pragma region aEvent
+
+void aEvent::clear()
+{
+    this->event_id = 0;
+    this->sender = nullptr;
+    this->field_0x8 = 0;
+    this->field_0x9 = 0;
+    this->field_0xa = 0;
+    this->field_0xb = 0;
+    this->field_0xc = 0;
+    this->field_0xd = 0;
+    this->field_0xe = 0;
+    this->field_0x10 = 0;
+    this->param_1 = 0;
+    this->param_2 = 0;
+    this->field_0x24 = 0;
+}
+
+#pragma endregion
+
 #pragma region aTimerManager
 aTimerManager::aTimerManager()
 {
@@ -1045,17 +1066,32 @@ aTimerManager::~aTimerManager()
     }
 }
 
+long aTimerManager::Init()
+{
+    aCallback* cb = new aCallback();
+    this->timers_callback = cb;
+
+    if (cb == nullptr)
+    {
+        return -1;
+    }
+
+    cb->setExec((callback_func_t)va_TimersCallback);
+
+    return 0;
+}
+
 long aTimerManager::AddTimer(aObject* owner, short event_id, uint32_t start_time, int32_t event_type, int32_t event_param, int32_t use_scenario_time)
 {
     HOOK_DLOGF(ATIMERMANAGER, INFO, "AddTimer(%p, %d, %d, %d, %d, %d)", owner, event_id, start_time, event_type, event_param, use_scenario_time);
 
-    if (this->num_timers >= 99)
+    if (this->num_timers >= MAX_TIMERS)
     {
         return -1;
     }
 
     aTimer* timer = reinterpret_cast<aTimer*>(g_guiHeap->malloc(sizeof(aTimer)));
-    this->timers[this->num_timers + 1] = timer;
+    this->timers[this->num_timers] = timer;
 
     if (timer == nullptr)
     {
@@ -1142,6 +1178,332 @@ aTimer* aTimerManager::GetTimer2(aObject* owner, short event_id)
     }
 
     return this->timers[timer_idx];
+}
+
+void aTimerManager::LockTimersExcept(aTimer* timer)
+{
+    this->lock_state = -1;
+    this->locked_timer = timer;
+}
+
+void aTimerManager::RemoveTimer(aObject* owner, short event_id)
+{
+    int32_t timer_idx = 0;
+
+    if (this->num_timers > 0)
+    {
+        for (size_t i = 0; i < this->num_timers; i++)
+        {
+            aTimer* t = this->timers[i];
+            if (t != nullptr && t->owner == owner && t->event_id == event_id)
+            {
+                timer_idx = i;
+                break;
+            }
+        }
+    }
+
+    if (timer_idx >= this->num_timers)
+    {
+        return;
+    }
+
+    aTimer* t = this->timers[timer_idx];
+
+    if (this->lock_state != 0 && this->locked_timer != t)
+    {
+        this->deferred_removals[this->removal_idx].owner = owner;
+        this->deferred_removals[this->removal_idx].event_id = (int)event_id;
+        this->removal_idx += 1;
+        return;
+    }
+
+    g_guiHeap->free(t);
+    this->num_timers -= 1;
+
+    if (timer_idx < this->num_timers)
+    {
+        for (int i = timer_idx; i < this->num_timers; i++)
+        {
+            this->timers[i] = this->timers[i + 1];
+        }
+    }
+
+    this->timers[this->num_timers] = nullptr;
+
+    if (this->num_timers == 0)
+    {
+        g_application->addCallback(this->timers_callback);
+    }
+}
+
+void aTimerManager::RemoveTimer2(int32_t timer_idx)
+{
+    if (timer_idx >= this->num_timers)
+    {
+        return;
+    }
+
+    aTimer* t = this->timers[timer_idx];
+
+    if (this->lock_state != 0 && this->locked_timer != t)
+    {
+        this->deferred_removals[this->removal_idx].owner = nullptr;
+        this->deferred_removals[this->removal_idx].event_id = timer_idx;
+        this->removal_idx += 1;
+        return;
+    }
+
+    g_guiHeap->free(t);
+    this->num_timers -= 1;
+
+    if (timer_idx < this->num_timers)
+    {
+        for (int i = timer_idx; i < this->num_timers; i++)
+        {
+            this->timers[i] = this->timers[i + 1];
+        }
+    }
+
+    this->timers[this->num_timers] = nullptr;
+
+    if (this->num_timers == 0)
+    {
+        g_application->addCallback(this->timers_callback);
+    }
+}
+
+void aTimerManager::RemoveTimers(aObject* owner)
+{
+    for (size_t i = 0; i < this->num_timers; i++)
+    {
+        aTimer* t = this->timers[i];
+        
+        if (t->owner != owner)
+        {
+            continue;
+        }
+
+        if (this->lock_state == 0 || this->locked_timer == t)
+        {
+            g_guiHeap->free(t);
+            this->num_timers -= 1;
+
+            if (i < this->num_timers)
+            {
+                for (int j = i; j < this->num_timers; j++)
+                {
+                    this->timers[j] = this->timers[j + 1];
+                }
+            }
+
+            this->timers[this->num_timers] = nullptr;
+
+            if (this->num_timers == 0)
+            {
+                g_application->addCallback(this->timers_callback);
+            }
+        }
+        else 
+        {
+            this->deferred_removals[this->removal_idx].owner = owner;
+            this->deferred_removals[this->removal_idx].event_id = -1;
+            this->removal_idx = this->removal_idx + 1;
+        }
+    }
+}
+
+void aTimerManager::UnlockTimers()
+{
+    this->lock_state = 0;
+
+    if (this->removal_idx < 0)
+    {
+        return;
+    }
+
+    int i = this->removal_idx;
+
+    do {
+        aTimerRemoval* t = &this->deferred_removals[i];
+
+        if (t->owner == nullptr)
+        {
+            if (t->event_id >= 0)
+            {
+                EnterMouseCritSec();
+                this->RemoveTimer2(t->event_id);
+                LeaveMouseCritSec();
+                i -= 1;
+                this->removal_idx -= 1;
+                continue;
+            }
+            Fatal(i, (char*)(" Illegal timersToWhack structure! "), nullptr);
+        }
+        else
+        {
+            if (t->event_id == -1)
+            {
+                EnterMouseCritSec();
+                this->RemoveTimers(t->owner);
+                LeaveMouseCritSec();
+                i -= 1;
+                this->removal_idx -= 1;
+                continue;
+            }
+            EnterMouseCritSec();
+            this->RemoveTimer(t->owner, t->event_id);
+            LeaveMouseCritSec();
+        }
+
+        i -= 1;
+        this->removal_idx -= 1;
+    } while (i >= 0);
+}
+
+void CheckMouse(void)
+{
+    SHORT shift_state = GetAsyncKeyState(VK_SHIFT);   // 0x10
+    SHORT ctrl_state = GetAsyncKeyState(VK_CONTROL);  // 0x11
+    SHORT alt_state = GetAsyncKeyState(VK_MENU);      // 0x12
+    SHORT left_state = GetAsyncKeyState(VK_LBUTTON);  // 0x01
+    SHORT right_state = GetAsyncKeyState(VK_RBUTTON); // 0x02
+
+    // Extract high byte and check if pressed (bit 7 of high byte = bit 15 overall)
+    bool shift_pressed = (shift_state & 0x8000) != 0;
+    bool ctrl_pressed = (ctrl_state & 0x8000) != 0;
+    bool alt_pressed = (alt_state & 0x8000) != 0;
+    bool left_pressed = (left_state & 0x8000) != 0;
+    bool right_pressed = (right_state & 0x8000) != 0;
+
+    aEvent evt = {};
+
+    if (g_leftMouseButtonDown == 0)
+    {
+        if (left_pressed)
+        {
+            // HOOK_DLOGF(ASYSTEM, INFO, "Mouse DOWN x=%d y=%d.", g_mouse_x, g_mouse_y);
+            evt.clear();
+            evt.event_id = EVT_MOUSE_DOWN;  // 1
+            evt.field_0x8 = 0xFF;  // Left button flag
+            evt.field_0xd = shift_pressed ? 1 : 0;
+            evt.field_0xc = ctrl_pressed ? 1 : 0;
+            evt.field_0xb = alt_pressed ? 1 : 0;
+            evt.field_0xa = right_pressed ? 1 : 0;
+            evt.param_1 = g_mouse_x;  // DAT_0078aaf0
+            evt.param_2 = g_mouse_y;  // DAT_0078aaf4
+
+            g_leftMouseButtonDown = -1;
+            handleEvent_ptr(&evt);
+        }
+    }
+    else if (!left_pressed)
+    {
+        // HOOK_DLOGF(ASYSTEM, INFO, "Mouse UP x=%d y=%d.", g_mouse_x, g_mouse_y);
+        evt.clear();
+        evt.event_id = EVT_MOUSE_UP;  // 4
+        evt.field_0xd = shift_pressed ? 1 : 0;
+        evt.field_0xc = ctrl_pressed ? 1 : 0;
+        evt.field_0xb = alt_pressed ? 1 : 0;
+        evt.field_0xa = right_pressed ? 1 : 0;
+        evt.param_1 = g_mouse_x;
+        evt.param_2 = g_mouse_y;
+
+        g_leftMouseButtonDown = 0;
+        handleEvent_ptr(&evt);
+    }
+
+    if (g_rightMouseButtonDown == 0)
+    {
+        if (right_pressed)
+        {
+            evt.clear();
+            evt.event_id = EVT_RIGHT_MOUSE_DOWN;
+            evt.field_0x8 = left_pressed ? 1 : 0;
+            evt.field_0xa = 0xFF;  // Right button flag?
+            evt.field_0xd = shift_pressed ? 1 : 0;
+            evt.field_0xc = ctrl_pressed ? 1 : 0;
+            evt.field_0xb = alt_pressed ? 1 : 0;
+            evt.param_1 = g_mouse_x;
+            evt.param_2 = g_mouse_y;
+
+            g_rightMouseButtonDown = -1;
+            handleEvent_ptr(&evt);
+        }
+    }
+    else if (!right_pressed)
+    {
+        evt.clear();
+        evt.event_id = EVT_RIGHT_MOUSE_UP;
+        evt.field_0x8 = left_pressed ? 1 : 0;
+        evt.field_0xd = shift_pressed ? 1 : 0;
+        evt.field_0xc = ctrl_pressed ? 1 : 0;
+        evt.field_0xb = alt_pressed ? 1 : 0;
+        evt.param_1 = g_mouse_x;
+        evt.param_2 = g_mouse_y;
+
+        g_rightMouseButtonDown = 0;
+        handleEvent_ptr(&evt);
+    }
+
+    // Handle mouse move
+    if (g_oldMouseX != g_mouse_x || g_oldMouseY != g_mouse_y)
+    {
+        evt.clear();
+        evt.event_id = EVT_MOUSE_MOVE;
+        evt.field_0x8 = left_pressed ? 1 : 0;
+        evt.field_0xa = right_pressed ? 1 : 0;
+        evt.field_0xb = alt_pressed ? 1 : 0;
+        evt.field_0xc = ctrl_pressed ? 1 : 0;
+        evt.field_0xd = shift_pressed ? 1 : 0;
+        evt.param_1 = g_mouse_x;
+        evt.param_2 = g_mouse_y;
+
+        g_oldMouseX = g_mouse_x;
+        g_oldMouseY = g_mouse_y;
+
+        handleEvent_ptr(&evt);
+    }
+}
+
+void __cdecl handleEvent(aEvent* evt)
+{
+    if (evt->event_id == EVT_MOUSE_DOWN)
+    {
+        HOOK_DLOGF(ASYSTEM, INFO, "Event: %d %p %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+            evt->event_id,
+            evt->sender,
+            evt->field_0x8,
+            evt->field_0x9,
+            evt->field_0xa,
+            evt->field_0xb,
+            evt->field_0xc,
+            evt->field_0xd,
+            evt->field_0xe,
+            evt->padding_0xf,
+            evt->field_0x10,
+            evt->field_0x12,
+            evt->param_1,
+            evt->param_2,
+            evt->field_0x1c,
+            evt->field_0x20,
+            evt->field_0x24,
+            evt->field_0x28
+        );
+    }
+    auto orig = reinterpret_cast<void(__cdecl*)(aEvent*)>(GetPatchedFuncOrigFromVA((void*)va_handleEvent));
+    orig(evt);
+}
+
+POINT __cdecl GetMessageCursorLoc(void)
+{
+    POINT p = {};
+    DWORD pos = GetMessagePos();
+    p.x = (LONG)(short)pos;
+    p.y = (LONG)(short)(pos >> 16);
+    HWND window = g_application->window_handle;
+    MapWindowPoints(nullptr, window, &p, 1);
+    return p;
 }
 
 #pragma endregion
@@ -2147,6 +2509,8 @@ static AutoFuncPatchRegister reg_aSystem{
         { (void*)va_aSystem_addCallback, GetMemberPtr(&aSystem::addCallback)},
         { (void*)va_InitWindowMode, (void*)InitWindowMode},
         { (void*)va_InitFullScreen, (void*)InitFullScreen},
+        { (void*)va_handleEvent, (void*)handleEvent},
+        { (void*)va_CheckMouse, (void*)CheckMouse},
         { (void*)va_aSystem_tweakDDPalette, GetMemberPtr(&aSystem::tweakDDPalette)},
         { (void*)va_aSystem_activatePalette, GetMemberPtr(&aSystem::activatePalette)},
         { (void*)va_aSystem_activatePaletteFromTGA, GetMemberPtr(&aSystem::activatePaletteFromTGA)},
@@ -2160,10 +2524,16 @@ static AutoFuncPatchRegister reg_aSystem{
 static AutoFuncPatchRegister reg_aTimerManager{
     "aTimerManager",
     {
+        { (void*)va_aTimerManager_Init, GetMemberPtr(&aTimerManager::Init)},
         { (void*)va_aTimerManager_AddTimer, GetMemberPtr(&aTimerManager::AddTimer)},
         { (void*)va_aTimerManager_AddUniqueTimer, GetMemberPtr(&aTimerManager::AddUniqueTimer)},
         { (void*)va_aTimerManager_GetTimer, GetMemberPtr(&aTimerManager::GetTimer)},
         { (void*)va_aTimerManager_GetTimer2, GetMemberPtr(&aTimerManager::GetTimer2)},
+        { (void*)va_aTimerManager_RemoveTimer, GetMemberPtr(&aTimerManager::RemoveTimer)},
+        { (void*)va_aTimerManager_RemoveTimer2, GetMemberPtr(&aTimerManager::RemoveTimer2)},
+        { (void*)va_aTimerManager_RemoveTimers, GetMemberPtr(&aTimerManager::RemoveTimers)},/*
+        { (void*)va_aTimerManager_LockTimersExcept, GetMemberPtr(&aTimerManager::LockTimersExcept)},
+        { (void*)va_aTimerManager_UnlockTimers, GetMemberPtr(&aTimerManager::UnlockTimers)},*/
     }
 };
 

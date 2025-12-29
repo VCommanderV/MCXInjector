@@ -40,3 +40,13 @@ long __cdecl _VFX_panel_copy(_pane* src_pane, int src_x, int src_y, _pane* dst_p
 {
     return 0;
 }
+
+long __cdecl _VFX_font_height(uint8_t* font)
+{
+    return *(font + 8);
+}
+
+long __cdecl _VFX_character_width(uint8_t* font, unsigned char ch)
+{
+    return *(long*)(*(int*)(ch * 4 + font + 16) + font);
+}

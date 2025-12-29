@@ -64,18 +64,31 @@ class aEvent
 public:
     uint8_t event_id;
     aObject* sender;
-    int32_t mouse_x;
-    int32_t mouse_y;
-    uint8_t mouse_left;
-    uint8_t mouse_right;
-    uint8_t special_flag;
-    uint8_t alt_pressed;
-    uint8_t ctrl_pressed;
-    uint8_t shift_pressed;
-    uint8_t orig_mask;
+    uint8_t field_0x8;
+    uint8_t field_0x9;
+    uint8_t field_0xa;
+    uint8_t field_0xb;
+    uint8_t field_0xc;
+    uint8_t field_0xd;
+    uint8_t field_0xe;
+    uint8_t padding_0xf;
+    uint16_t field_0x10;
+    uint16_t field_0x12;
+    uint32_t param_1; // 0x14
+    uint32_t param_2; // 0x18
+    uint32_t field_0x1c;
+    uint32_t field_0x20;
+    uint32_t field_0x24;
+    uint32_t field_0x28;
+public:
+    void clear();
 };
 
 static constexpr uint8_t EVT_MOUSE_DOWN = 0x1;
+static constexpr uint8_t EVT_RIGHT_MOUSE_DOWN = 0x3;
+static constexpr uint8_t EVT_MOUSE_UP = 0x4;
+static constexpr uint8_t EVT_RIGHT_MOUSE_UP = 0x6;
+static constexpr uint8_t EVT_MOUSE_MOVE = 0x7;
 
 using event_routine_t = void(__cdecl*)(class aObject*, aEvent*);
 using paint_routine_t = void(__cdecl*)(class aObject*);
@@ -129,7 +142,7 @@ public:
     void ExecCallback();
 };
 
-static constexpr size_t MAX_TIMERS = 100;
+static constexpr size_t MAX_TIMERS = 99;
 
 class aTimer
 {
@@ -144,12 +157,19 @@ public:
     int32_t use_scenario_time; // 0x18
 };
 
+struct aTimerRemoval
+{
+    aObject* owner;
+    int32_t event_id;
+};
+
 class aTimerManager
 {
 public:
     int32_t num_timers;
-    aTimer* timers[MAX_TIMERS]; // 100
-    uint8_t unused[792]; // ????
+    int32_t removal_idx;
+    aTimer* timers[MAX_TIMERS];
+    aTimerRemoval deferred_removals[MAX_TIMERS];
     aCallback* timers_callback;
     int32_t lock_state;
     aTimer* locked_timer;
@@ -159,6 +179,9 @@ public:
 
     // public: __thiscall aTimerManager::~aTimerManager(void)
     ~aTimerManager();
+
+    // public: long __thiscall aTimerManager::Init(void)
+    long Init();
 
     // public: long __thiscall aTimerManager::AddTimer(class aObject *,short,unsigned long, long, long, int)
     long AddTimer(aObject* owner, short event_id, uint32_t start_time, int32_t event_type, int32_t event_param, int32_t use_scenario_time);
@@ -172,6 +195,20 @@ public:
     // public: struct aTimer * __thiscall aTimerManager::GetTimer(class aObject *,short)
     aTimer* GetTimer2(aObject* owner, short event_id);
 
+    // public: void __thiscall aTimerManager::LockTimersExcept(struct aTimer *)
+    void LockTimersExcept(aTimer* timer);
+
+    // public: void __thiscall aTimerManager::RemoveTimer(class aObject *,short)
+    void RemoveTimer(aObject* owner, short event_id);
+
+    // public: void __thiscall aTimerManager::RemoveTimer(long)
+    void RemoveTimer2(int32_t timer_idx);
+
+    // public: void __thiscall aTimerManager::RemoveTimers(class aObject *)
+    void RemoveTimers(aObject* owner);
+
+    // public: void __thiscall aTimerManager::UnlockTimers(void)
+    void UnlockTimers();
 };
 
 struct aObject_vtable
@@ -599,7 +636,7 @@ public:
     int32_t field_0xad8; // 0xad8
     int32_t field_0xadc; // 0xadc
     int32_t field_0xae0; // 0xae0
-    int32_t field_0xae4; // 0xae4
+    aTimerManager* timer_manager; // 0xae4
     int32_t field_0xae8; // 0xae8
     BOOL allow_sys_palette_changes; // 0xaec
     int32_t field_0xaf0; // 0xaf0
@@ -737,10 +774,16 @@ VADDR(va_aCallback_setExec, 0x00615880);
 VADDR(va_aCallback_setMessage, 0x006158a0);
 VADDR(va_TimersCallback, 0x006158f0);
 
+VADDR(va_aTimerManager_Init, 0x00615b80);
 VADDR(va_aTimerManager_AddTimer, 0x00615cb0);
 VADDR(va_aTimerManager_AddUniqueTimer, 0x00615c30);
 VADDR(va_aTimerManager_GetTimer, 0x00615fc0);
 VADDR(va_aTimerManager_GetTimer2, 0x00615fe0);
+VADDR(va_aTimerManager_LockTimersExcept, 0x00616030);
+VADDR(va_aTimerManager_RemoveTimer, 0x00615e40);
+VADDR(va_aTimerManager_RemoveTimer2, 0x00615f10);
+VADDR(va_aTimerManager_RemoveTimers, 0x00615d60);
+VADDR(va_aTimerManager_UnlockTimers, 0x00616050);
 
 VADDR(va_aSystem_vftable, 0x0077af08);
 VADDR(va_aSystem_startupDirectDraw, 0x0060db20);
@@ -791,10 +834,23 @@ VADDR(va_InitAlphaLookup, 0x0006b51b0);
 VADDR(va_countsPerSecond, 0x007aa7c8);
 VADDR(va_scenarioTime, 0x007f09c4);
 VADDR(va_aPostMessage, 0x00610590);
+VADDR(va_handleEvent, 0x00610fb0);
+VADDR(va_CheckMouse, 0x006127e0);
+VADDR(va_leftMouseButtonDown, 0x007aa998);
+VADDR(va_rightMouseButtonDown, 0x007aa99c);
+VADDR(va_DAT_0078aaf0, 0x0078aaf0);
+VADDR(va_DAT_0078aaf4, 0x0078aaf4);
+VADDR(va_oldMouseX, 0x007a9ed0);
+VADDR(va_oldMouseY, 0x007a9ed4);
 #pragma endregion
 
 #pragma region Globals
-OBJ_REF(callback_func_t, g_TimersCallback, va_TimersCallback);
+OBJ_REF(int32_t, g_mouse_x, va_DAT_0078aaf0);
+OBJ_REF(int32_t, g_mouse_y, va_DAT_0078aaf4);
+OBJ_REF(int32_t, g_oldMouseX, va_oldMouseX);
+OBJ_REF(int32_t, g_oldMouseY, va_oldMouseY);
+OBJ_REF(int32_t, g_leftMouseButtonDown, va_leftMouseButtonDown);
+OBJ_REF(int32_t, g_rightMouseButtonDown, va_rightMouseButtonDown);
 OBJ_REF(float, g_scenarioTime, va_scenarioTime);
 OBJ_REF(LARGE_INTEGER, g_countsPerSecond, va_countsPerSecond);
 OBJ_REF(int32_t, g_globalEntries, va_globalEntries);
@@ -827,10 +883,15 @@ PTR_REF(void, g_DIBBits, va_DAT_007ab104);
 static void __cdecl aRedrawScreen();
 static void __cdecl InitFullScreen(void);
 static void __cdecl InitWindowMode(void);
+static void __cdecl TimerCallback(void);
+static void __cdecl CheckMouse(void);
+static void __cdecl handleEvent(aEvent*);
+POINT __cdecl GetMessageCursorLoc(void);
 inline auto aLockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aLockScreen);
 inline auto aUnlockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aUnlockScreen);
 inline auto InitAlphaLookup_ptr = FUN_PTR<void(__cdecl*)(VFX_RGB*)>(va_InitAlphaLookup);
 inline auto aPostMessage_ptr = FUN_PTR<void(__cdecl*)(aObject*, int32_t)>(va_aPostMessage);
+inline auto handleEvent_ptr = FUN_PTR<void(__cdecl*)(aEvent*)>(va_handleEvent);
 
 static __forceinline void EnterMouseCritSec() noexcept
 {
