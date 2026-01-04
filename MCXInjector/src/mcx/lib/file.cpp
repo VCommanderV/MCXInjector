@@ -40,6 +40,12 @@ static void __forceinline __cdecl Hook_File_delete(void* ptr)
 }
 
 #pragma warning(disable:26495, justification : "Initialization happens in Hook_File_ctor" )
+File::File()
+{
+    Hook_File_ctor(this, nullptr);
+}
+#pragma warning(default:26495)
+
 void* File::operator new(size_t size)
 {
     return Hook_File_new(size);
@@ -54,13 +60,6 @@ void File::operator delete(void* ptr)
 {
     Hook_File_delete(ptr);
 }
-
-File::File()
-{
-    Hook_File_ctor(this, nullptr);
-}
-#pragma warning(default:26495)
-
 
 long File::open(char* filename, FileMode mode, long max_children)
 {

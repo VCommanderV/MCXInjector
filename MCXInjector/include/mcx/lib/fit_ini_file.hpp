@@ -11,7 +11,7 @@
 #ifndef NO_ERR
 #define NO_ERR	0
 #endif
-
+static constexpr auto INI_ERR_BLOCK_NOT_FOUND = 0xFADA0000;
 static constexpr auto INI_ERR_BUFFER_TOO_SMALL = 0xFADA0003;
 static constexpr auto INI_ERR_NOT_A_FITINI_FILE = 0xFADA0004;
 static constexpr auto INI_ERR_BLOCKS_MALLOC_FAILED = 0xFADA0005;
@@ -201,6 +201,9 @@ public:
     long writeIdUShortArray(char* key, unsigned short* values, unsigned long length);
 
     long writeIdUCharArray(char* key, unsigned char* values, unsigned long length);
+
+    // long __thiscall FUN_00649f70(FitIniFile *this,char *key)
+    long seekToBlock(char* block_name);
 private:
     template<typename T>
     inline long NumberToText(const char* fmt, char* buf, T value, unsigned long buf_length)
@@ -492,6 +495,7 @@ VADDR(va_FitIniFile_byteToTextDec, 0x00649df0);
 VADDR(va_FitIniFile_booleanToLong, 0x00649af0);
 VADDR(va_FitIniFile_atClose, 0x00649400);
 VADDR(va_FitIniFile_afterOpen, 0x00649250);
+VADDR(va_FitIniFile_seekToBlock, 0x00649f70);
 # pragma endregion
 
 #pragma region Layout asserts

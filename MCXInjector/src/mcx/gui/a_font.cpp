@@ -43,7 +43,7 @@ int32_t aFont::height()
         return 0;
     }
 
-    int32_t font_height = _VFX_font_height(this->ptr);
+    int32_t font_height = _VFX_font_height_PTR(this->ptr);
 
     return font_height;
 }
@@ -103,7 +103,7 @@ int32_t aFont::init(char* filename)
 
 int32_t aFont::width(unsigned char* ch)
 {
-    if (this->ptr == nullptr || *ch == '\0')
+    if (ch == nullptr || *ch == '\0' || this->ptr == nullptr)
     {
         return 0;
     }
@@ -115,7 +115,7 @@ int32_t aFont::width(unsigned char* ch)
     {
         for (size_t i = 0; i < len; i++)
         {
-            width += _VFX_character_width(this->ptr, ch[i]);
+            width += _VFX_character_width_PTR(this->ptr, ch[i]);
         }
     }
 
@@ -129,12 +129,12 @@ int32_t aFont::width2(unsigned char ch)
         return 0;
     }
 
-    if (this->ptr == nullptr)
+    if (this == nullptr)
     {
         return 0;
     }
 
-    return _VFX_character_width(this->ptr, ch);
+    return _VFX_character_width_PTR(this->ptr, ch);
 }
 
 int32_t aFont::charactersToWidth(unsigned char* text, long max_width, int wrap_mode)

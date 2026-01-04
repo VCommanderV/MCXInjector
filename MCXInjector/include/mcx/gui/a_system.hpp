@@ -39,6 +39,23 @@ static constexpr auto MAX_CHILDREN = 255;
 static constexpr uint32_t DDPAL_FIRST_NON_SYSTEM_COLOR = 10;
 static constexpr uint32_t DDPAL_NUM_NON_SYSTEM_COLOR = 256 - 20;
 
+enum Processor : int
+{
+    PROC_UNSUPPORTED     = 0x0, // 386 or 486?
+    PROC_PENTIUM_BASIC   = 0x1, // Pentium (no MMX)
+    PROC_PENTIUM_MMX     = 0x2, // Pentium MMX or later
+    PROC_PENTIUM_NOCPUID = 0x3  // Pentium without working CPUID?
+};
+
+enum CursorType : int
+{
+    CURSOR_0 = 0,
+    CURSOR_15 = 0xf,
+    CURSOR_16 = 0x10,
+    CURSOR_17 = 0x11,
+    CURSOR_18 = 0x12
+};
+
 #pragma pack(push, 1) // ensure no padding
 struct TGAHeader
 {
@@ -143,6 +160,7 @@ public:
 };
 
 static constexpr size_t MAX_TIMERS = 99;
+static constexpr size_t MAX_CALLBACKS = 99;
 
 class aTimer
 {
@@ -213,8 +231,8 @@ public:
 
 struct aObject_vtable
 {
-    void(__thiscall* vector_deleting_destructor)(unsigned int);
-    void(__thiscall* init)();
+    void(__thiscall* vector_deleting_destructor)(aObject*, unsigned int);
+    void(__thiscall* init)(aObject*, int32_t, int32_t, int32_t, int32_t, int32_t);
     void(__thiscall* destroy)();
     int32_t(__thiscall* getWidth)(aObject*); // width
     int32_t(__thiscall* getHeight)(aObject*);
@@ -243,7 +261,7 @@ struct aObject_vtable
     void(__thiscall* background)();
     void(__thiscall* animation)();
     void(__thiscall* icon)();
-    void(__thiscall* setDepth)();
+    void(__thiscall* setDepth)(aObject*, int32_t);
     void(__thiscall* children)();
     void(__thiscall* FUN_0060ef20)(aObject*, int32_t);
     void(__thiscall* foremostChild)();
@@ -523,7 +541,7 @@ public:
 #pragma endregion
 
 #pragma region aSystem
-class aSystem : aObject
+class aSystem : public aObject
 {
 #pragma region Fields
 public:
@@ -534,8 +552,8 @@ public:
     int32_t field_0x4bc; // 0x4bc
     IDirectDrawPalette* ddraw_palette;         // 0x4c0
     int32_t field_0x4c4; // 0x4c4
-    int32_t field_0x4c8; // 0x4c8 // palette_cycle
-    int32_t field_0x4cc; // 0x4cc // flip_to_gdi
+    int32_t palette_cycle; // 0x4c8
+    int32_t flip_to_gdi; // 0x4cc
     VFX_RGB master_palette[256]; // 0x4d0
     int32_t gamma; // 0x7d0 // gamma
     int32_t field_0x7d4; // 0x7d4
@@ -612,17 +630,17 @@ public:
     int32_t field_0x8f0; // 0x8f0
     int32_t field_0x8f4; // 0x8f4
     int32_t field_0x8f8; // 0x8f8
-    int32_t field_0x8fc; // 0x8fc
-    int32_t field_0x900; // 0x900
-    int32_t field_0x904; // 0x904
-    int32_t field_0x908; // 0x908
+    int32_t display_width; // 0x8fc
+    int32_t display_height; // 0x900
+    int32_t screen_offset_x; // 0x904
+    int32_t screen_offset_y; // 0x908
     HWND window_handle; // 0x90c
     int32_t num_callbacks; // 0x910
-    aCallback* callbacks[99]; // 0x914
-    int32_t field_0xaa0; // 0xaa0
-    int32_t field_0xaa4; // 0xaa4
-    int32_t field_0xaa8; // 0xaa8
-    int32_t field_0xaac; // 0xaac
+    aCallback* callbacks[MAX_CALLBACKS]; // 0x914
+    aObject* grabbed_object; // 0xaa0
+    aObject* text; // 0xaa4
+    aObject* curr_object; // 0xaa8
+    aObject* modal; // 0xaac
     int32_t field_0xab0; // 0xab0
     int32_t field_0xab4; // 0xab4
     int32_t field_0xab8; // 0xab8
@@ -634,20 +652,22 @@ public:
     int32_t field_0xad0; // 0xad0
     int32_t field_0xad4; // 0xad4
     int32_t field_0xad8; // 0xad8
-    int32_t field_0xadc; // 0xadc
-    int32_t field_0xae0; // 0xae0
+    int32_t cursor_type_1; // 0xadc
+    int32_t cursor_visible; // 0xae0
     aTimerManager* timer_manager; // 0xae4
-    int32_t field_0xae8; // 0xae8
+    int32_t some_code; // 0xae8
     BOOL allow_sys_palette_changes; // 0xaec
     int32_t field_0xaf0; // 0xaf0
     int32_t field_0xaf4; // 0xaf4
-    int32_t field_0xaf8; // 0xaf8
-    int32_t field_0xafc; // 0xafc
-    int32_t field_0xb00; // 0xb00
-    int32_t field_0xb04; // 0xb04
-    int32_t field_0xb08; // 0xb08
+    int32_t can_scroll_horizontally; // 0xaf8
+    int32_t can_scroll_vertically; // 0xafc
+    int32_t scroll_width; // 0xb00
+    int32_t scroll_height; // 0xb04
+    int32_t cursor_type_2; // 0xb08
 #pragma endregion
 public:
+    aSystem();
+
     // public: long __thiscall aSystem::startupDirectDraw(long,long,long)
     long startupDirectDraw(long width, long height, long bits_per_pixel);
 
@@ -677,6 +697,18 @@ public:
 
     // public: long __thiscall aSystem::addCallback(class aCallback *)
     long addCallback(aCallback* cb);
+
+    // public: int __thiscall aSystem::start(void *,void *,char *,int,short,short)
+    int32_t start(HINSTANCE instance, HINSTANCE old_instance, char* cmd_line, int param_4, short param_5, short param_6);
+
+    // public: void __thiscall aSystem::setScrollRect(void)
+    void setScrollRect();
+
+    // public: void __thiscall aSystem::SetCurrentCursor(enum CursorType)
+    void SetCurrentCursor(CursorType cursor_type);
+
+    // public: void __thiscall aSystem::showCursor(int)
+    void showCursor(BOOL visible);
 };
 #pragma endregion
 
@@ -796,6 +828,10 @@ VADDR(va_aSystem_activatePaletteFromTGA, 0x00615240);
 VADDR(va_aSystem_activateSmackerPalette, 0x00615510);
 VADDR(va_aSystem_activatePaletteFromGIF, 0x00615400);
 VADDR(va_aSystem_fadeDownCurrentPalette, 0x00614f90);
+VADDR(va_aSystem_start, 0x00612c10);
+VADDR(va_aSystem_run, 0x00614490);
+VADDR(va_aSystem_stop, 0x00613b70);
+VADDR(va_aSystem_windowProc, 0x00612080);
 
 VADDR(va_bmi, 0x007a9f90);
 VADDR(va_aRedrawScreen, 0x00610410);
@@ -842,9 +878,37 @@ VADDR(va_DAT_0078aaf0, 0x0078aaf0);
 VADDR(va_DAT_0078aaf4, 0x0078aaf4);
 VADDR(va_oldMouseX, 0x007a9ed0);
 VADDR(va_oldMouseY, 0x007a9ed4);
+VADDR(va_backpbmi, 0x007ab14c);
+VADDR(va_thePalette, 0x007ab150);
+VADDR(va_thisInstance, 0x007aaedc);
+VADDR(va_appName, 0x007aa9a0);
+VADDR(va_WindowTitle, 0x007f050c);
+VADDR(va_Processor, 0x007ab10c);
+VADDR(va_displayWidth, 0x007a9e70);
+VADDR(va_displayHeight, 0x007aa920);
+VADDR(va_systemInit, 0x007590d0);
+VADDR(va_ParseCommandLine, 0x00610940);
+VADDR(va_ghWindow, 0x007ab0ec);
+VADDR(va_cursorShapes, 0x007ab114);
+VADDR(va_MouseTimerInit, 0x0061ed30);
+VADDR(va_UpdateDisplay, 0x0061e2e0);
+VADDR(va_userInit, 0x0075a470);
+VADDR(va_AG_mouseFrame, 0x007bbbbc);
+VADDR(va_mouseTrackerCallback, 0x007ab1f8);
+VADDR(va_RealWinMain, 0x00610be0);
+VADDR(va_topOfStack, 0x007ab21c);
+VADDR(va_stackSize, 0x0078a090);
+VADDR(va_memoryStatus, 0x007ab1e4);
 #pragma endregion
 
 #pragma region Globals
+OBJ_REF(uint32_t, g_stackSize, va_stackSize);
+OBJ_REF(uint32_t, g_topOfStack, va_topOfStack);
+PTR_REF(MEMORYSTATUS, g_memoryStatus, va_memoryStatus);
+PTR_REF(aCallback, g_mouseTrackerCallback, va_mouseTrackerCallback);
+OBJ_REF(int32_t, g_AG_mouseFrame, va_AG_mouseFrame);
+OBJ_REF(int32_t, g_displayWidth, va_displayWidth);
+OBJ_REF(int32_t, g_displayHeight, va_displayHeight);
 OBJ_REF(int32_t, g_mouse_x, va_DAT_0078aaf0);
 OBJ_REF(int32_t, g_mouse_y, va_DAT_0078aaf4);
 OBJ_REF(int32_t, g_oldMouseX, va_oldMouseX);
@@ -879,6 +943,14 @@ OBJ_REF(int32_t, g_DAT_007ab0d4, va_DAT_007ab0d4);
 ARR_REF(PALETTEENTRY, 256, g_SystemPalette, va_SystemPalette);
 ARR_REF(uint8_t, 256, g_GammaColorTranslation, va_GammaColorTranslation);
 PTR_REF(void, g_DIBBits, va_DAT_007ab104);
+PTR_REF(BITMAPINFO, g_backpbmi, va_backpbmi);
+PTR_REF(HPALETTE, g_thePalette, va_thePalette);
+OBJ_REF(HINSTANCE, g_thisInstance, va_thisInstance);
+ARR_REF(char, 256, g_appName, va_appName);
+OBJ_REF(char, g_WindowTitle, va_WindowTitle);
+OBJ_REF(Processor, g_Processor, va_Processor);
+OBJ_REF(HWND, g_hWindow, va_ghWindow);
+PTR_REF(uint8_t*, g_cursorShapes, va_cursorShapes);
 
 static void __cdecl aRedrawScreen();
 static void __cdecl InitFullScreen(void);
@@ -886,12 +958,19 @@ static void __cdecl InitWindowMode(void);
 static void __cdecl TimerCallback(void);
 static void __cdecl CheckMouse(void);
 static void __cdecl handleEvent(aEvent*);
+static int __cdecl RealWinMain(struct HINSTANCE__* h_instance, struct HINSTANCE__* param_2, char* cmd_line, int param_4);
 POINT __cdecl GetMessageCursorLoc(void);
+
 inline auto aLockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aLockScreen);
 inline auto aUnlockScreen_ptr = FUN_PTR<void(__cdecl*)(void)>(va_aUnlockScreen);
 inline auto InitAlphaLookup_ptr = FUN_PTR<void(__cdecl*)(VFX_RGB*)>(va_InitAlphaLookup);
 inline auto aPostMessage_ptr = FUN_PTR<void(__cdecl*)(aObject*, int32_t)>(va_aPostMessage);
 inline auto handleEvent_ptr = FUN_PTR<void(__cdecl*)(aEvent*)>(va_handleEvent);
+inline auto systemInit_ptr = FUN_PTR<void(__cdecl*)(void)>(va_systemInit);
+inline auto ParseCommandLine_ptr = FUN_PTR<void(__cdecl*)(char* cmd_line)>(va_ParseCommandLine);
+inline auto MouseTimerInit_ptr = FUN_PTR<void(__cdecl*)(void)>(va_MouseTimerInit);
+inline auto UpdateDisplay_ptr = FUN_PTR<void(__cdecl*)(int,int,long,int,long)>(va_UpdateDisplay);
+inline auto userInit_ptr = FUN_PTR<long(__cdecl*)(void)>(va_userInit);
 
 static __forceinline void EnterMouseCritSec() noexcept
 {
@@ -981,7 +1060,6 @@ ASSERT_FIELD_OFFSET(aSystem, gamma, 0x7d0);
 ASSERT_FIELD_OFFSET(aSystem, window_handle, 0x90c);
 ASSERT_FIELD_OFFSET(aSystem, num_callbacks, 0x910);
 ASSERT_FIELD_OFFSET(aSystem, callbacks, 0x914);
-ASSERT_FIELD_OFFSET(aSystem, field_0xaa0, 0xaa0);
-ASSERT_FIELD_OFFSET(aSystem, field_0xb08, 0xb08);
-constexpr static int i = offsetof(aSystem, field_0xaa0);
+ASSERT_FIELD_OFFSET(aSystem, grabbed_object, 0xaa0);
+ASSERT_FIELD_OFFSET(aSystem, cursor_type_2, 0xb08);
 #pragma endregion

@@ -1018,6 +1018,52 @@ long FitIniFile::readIdLongArray(char* key, long* buf, unsigned long buf_length)
     return NO_ERR;
 }
 
+long FitIniFile::seekToBlock(char* block_name)
+{
+    uint32_t block_index = 0;
+
+    if (this->num_blocks != 0)
+    {
+        for (block_index = 0; block_index < this->num_blocks; block_index++)
+        {
+            FitIniBlock* curr_block = &this->blocks[block_index];
+
+            int cmp_result = strcmp(curr_block->block_id, block_name);
+
+            if (cmp_result == 0)
+            {
+                break;
+            }
+        }
+    }
+
+    if (block_index == this->num_blocks)
+    {
+        return INI_ERR_BLOCK_NOT_FOUND;
+    }
+
+    FitIniBlock* found_block = &this->blocks[block_index];
+    this->seek(found_block->block_offset, SEEK_SET);
+    this->curr_block_id = found_block->block_id;
+    this->curr_block_offset = found_block->block_offset;
+
+    // calculate block size
+    if (block_index + 1 < this->num_blocks)
+    {
+        // size = next block offset - current block offset
+        FitIniBlock* next_block = &this->blocks[block_index + 1];
+        this->curr_block_size = next_block->block_offset - this->curr_block_offset;
+    }
+    else
+    {
+        // Last block, size = file size - current offset
+        uint32_t file_size = this->getLength();
+        this->curr_block_size = file_size - this->curr_block_offset;
+    }
+
+    return NO_ERR;
+}
+
 long FitIniFile::writeBlock(char* key)
 {
     unsigned char block_id_buf[256];
@@ -1144,6 +1190,7 @@ static AutoFuncPatchRegister reg_FitIniFile{
         { (void*)va_FitIniFile_writeIdLongArray, GetMemberPtr(&FitIniFile::writeIdLongArray) },
         { (void*)va_FitIniFile_writeIdUShortArray, GetMemberPtr(&FitIniFile::writeIdUShortArray) },
         { (void*)va_FitIniFile_writeIdUCharArray, GetMemberPtr(&FitIniFile::writeIdUCharArray) },
+        { (void*)va_FitIniFile_seekToBlock, GetMemberPtr(&FitIniFile::seekToBlock) },
 
     }
 };

@@ -5,9 +5,16 @@
 #include "mcx/lib/vfx.hpp"
 #include "mcx/lib/heap.hpp"
 #include "mcx/lib/file.hpp"
+#include "mcx/lib/packet_file.hpp"
 #include "mcx/lib/a_globs.hpp"
+#include "mcx/lib/utils.hpp"
 #include "mcx/gui/a_animation.hpp"
+#include "mcx/gui/a_font.hpp"
 #include "mcx/gui/a_system.hpp"
+#include "mcx/engine/font.hpp"
+#include "mcx/color/color.hpp"
+#include "mcx/lib/c_ident.hpp"
+#include "mcx/iface/iface.hpp"
 
 #pragma region aObject
 MCXI_CTOR_HOOK Hook_aObject_ctor(aObject* this_ptr, void* unused_edx)
@@ -731,7 +738,7 @@ void aObject::drawFramed(BOOL inverted_frame, BOOL wipe)
     _VFX_draw_line_PTR(dst, inset2, inset2, inset2, bottom - inset2, 0, 0);
 }
 
-void aObject::FillBox(short top, short right, short bottom, short left, uint8_t color)
+void aObject::FillBox(short left, short top, short right, short bottom, uint8_t color)
 {
     _pane* pane = this->render_port->frame;
 
@@ -1495,6 +1502,105 @@ void __cdecl handleEvent(aEvent* evt)
     orig(evt);
 }
 
+int __cdecl RealWinMain(HINSTANCE__* h_inst, HINSTANCE__* h_inst_prev, char* cmd_line, int cmd_show)
+{
+    // calculate top of stack
+    __asm {
+        mov dword ptr[g_topOfStack], esp   ; save the current stack pointer
+        mov eax, [g_stackSize]             ; load stackSize(0x100000)
+        mov edi, dword ptr[g_topOfStack]   ; load ESP into EDI
+        add edi, eax                       ; EDI = ESP + stackSize
+        mov dword ptr[g_topOfStack], edi   ; topOfStack = ESP + stackSize
+    }
+
+    LPMEMORYSTATUS ms = new MEMORYSTATUS();
+    g_memoryStatus = ms;
+    static_assert(sizeof(MEMORYSTATUS) == 32);
+    g_memoryStatus->dwLength = sizeof(MEMORYSTATUS);
+    GlobalMemoryStatus(g_memoryStatus);
+
+    if (g_memoryStatus->dwTotalPageFile < 48000000)
+    {
+        char buf[356];
+        char msg[1024];
+        cLoadString(&g_thisInstance, 0x355, buf, 354);
+        sprintf(msg, buf, g_memoryStatus->dwTotalPageFile >> 20);
+        GeneralMsg(msg);
+    }
+
+    time_t t = {};
+    srand((unsigned int)t);
+
+    if (h_inst_prev != NULL)
+    {
+        GeneralMsg((char*)"An instance of this application is already running.");
+        return 0;
+    }
+
+    g_thisInstance = h_inst;
+    g_globalHeapList = new HeapList();
+    if (g_globalHeapList != nullptr)
+    {
+        for (size_t i = 0; i < MaxHeaps; i++)
+        {
+            g_globalHeapList->heaps[i] = nullptr;
+        }
+    }
+
+    strcpy(&g_savePath, "c:\\Program Files\\Honor Bound\\");
+    strcpy(&g_directXPath, "\\honorb\\directx\\");
+    strcpy(&g_terrainPath, "data\\terrain\\");
+    strcpy(&g_palettePath, "data\\palette\\");
+    strcpy(&g_artPath, "data\\art\\");
+    strcpy(&g_fontPath, "data\\fonts\\");
+    strcpy(&g_soundPath, "data\\sound\\");
+    strcpy(&g_spritePath, "data\\sprites\\");
+    strcpy(&g_interfacePath, "data\\iface\\");
+    strcpy(&g_paletteName, "palette.gif");
+
+    g_application = new aSystem();
+
+    if (g_application == nullptr)
+    {
+        GeneralMsg((char*)"Initialization Failure!");
+        return -5;
+    }
+    new (g_application) aObject();
+    g_application->vtable = (aObject_vtable*)MCX_RUNTIME_ADDR(va_aSystem_vftable);
+
+    g_oldMouseX = -1;
+    g_oldMouseY = -1;
+    g_leftMouseButtonDown = FALSE;
+    g_rightMouseButtonDown = FALSE;
+    
+    long start_res = g_application->start(h_inst, NULL, cmd_line, cmd_show, 640, 480);
+
+    if (start_res != 0)
+    {
+        return -4;
+    }
+
+    FUN_PTR<void(__thiscall*)(aSystem*)>(va_aSystem_run)(g_application);
+    FUN_PTR<void(__thiscall*)(aSystem*)>(va_aSystem_stop)(g_application);
+
+    if (g_globalHeapList != nullptr)
+    {
+        for (size_t i = 0; i < MaxHeaps; i++)
+        {
+            delete g_globalHeapList->heaps[i];
+            g_globalHeapList->heaps[i] = nullptr;
+        }
+    }
+
+    if (g_application != nullptr)
+    {
+        g_application->vtable->vector_deleting_destructor(g_application, 0);
+        delete g_application;
+    }
+
+    return 0;
+}
+
 POINT __cdecl GetMessageCursorLoc(void)
 {
     POINT p = {};
@@ -1509,6 +1615,10 @@ POINT __cdecl GetMessageCursorLoc(void)
 #pragma endregion
 
 #pragma region aSystem
+aSystem::aSystem()
+{
+}
+
 long aSystem::startupDirectDraw(long width, long height, long bits_per_pixel)
 {
     IDirectDraw** pp_ddraw = &this->ddraw1;
@@ -2244,91 +2354,104 @@ void aSystem::activatePaletteFromGIF(char* pal_file_name)
     throw new NotImplementedError();
 }
 
+// TODO: FIXME: this does not work.
+// When transition from i.e main menu -> briefing screen, the palette
+// looks "posterized" for a second instead of fading down to cover the change.
 void aSystem::fadeDownCurrentPalette()
 {
     if (g_DAT_007ab108 == 0 || this->master_palette[10].r == 0)
         return;
 
-    LARGE_INTEGER start_time{}, end_time{};
+    LARGE_INTEGER start_time{};
+    LARGE_INTEGER end_time{};
+
     int total_fade = 0;
     int fade_step = 1;
     float fade_progress = 1.0f;
 
-    do
+    BITMAPINFO* bmi_ = (BITMAPINFO*)&g_bmi;
+
+    do 
     {
         QueryPerformanceCounter(&start_time);
 
-        uint8_t* p_pal = &this->master_palette[10].g;
-
-        int i = 0;
-        auto logical_palette = &g_logicalPalette.palPalEntry;
-        BITMAPINFO* bmi_ = (BITMAPINFO*)&g_bmi;
-        RGBQUAD* log = bmi_->bmiColors;
-
-        do
+        // fade step
+        for (int i = 0; i < 236; i++)
         {
-            int dr = int(((VFX_RGB*)(p_pal - 1))->r) - fade_step;
-            uint8_t r = (dr < 0) ? 0 : uint8_t(dr);
+            VFX_RGB* pal_entry = &this->master_palette[i + 10];
 
-            int dg = int(*p_pal) - fade_step;
-            uint8_t g = (dg < 0) ? 0 : uint8_t(dg);
+            // fade down each component
+            if (fade_step < (int)pal_entry->r)
+                pal_entry->r -= fade_step;
+            else
+                pal_entry->r = 0;
 
-            int db = int(p_pal[1]) - fade_step;
-            uint8_t b = (db < 0) ? 0 : uint8_t(db);
+            if (fade_step < (int)pal_entry->g)
+                pal_entry->g -= fade_step;
+            else
+                pal_entry->g = 0;
 
-            ((VFX_RGB*)(p_pal - 1))->r = r;
-            *p_pal = g;
-            p_pal[1] = b;
+            if (fade_step < (int)pal_entry->b)
+                pal_entry->b -= fade_step;
+            else
+                pal_entry->b = 0;
 
-            logical_palette[i]->peRed = r;
-            logical_palette[i]->peGreen = g;
-            logical_palette[i]->peBlue = b;
+            // update the logical palette
+            g_logicalPalette.palPalEntry[i + 10].peRed = pal_entry->r;
+            g_logicalPalette.palPalEntry[i + 10].peGreen = pal_entry->g;
+            g_logicalPalette.palPalEntry[i + 10].peBlue = pal_entry->b;
+            g_logicalPalette.palPalEntry[i + 10].peFlags = 0;
 
-            RGBQUAD* dib = &log[i];
-            dib->rgbRed = r;
-            dib->rgbGreen = g;
-            dib->rgbBlue = b;
-
-            i += 1;
-            p_pal += 3;
-        } while (i < 236);
+            // update DIB colors
+            bmi_->bmiColors[i + 10].rgbRed = pal_entry->r;
+            bmi_->bmiColors[i + 10].rgbGreen = pal_entry->g;
+            bmi_->bmiColors[i + 10].rgbBlue = pal_entry->b;
+            bmi_->bmiColors[i + 10].rgbReserved = 0;
+        }
 
         if (!g_FullScreen)
         {
-            AnimatePalette(g_hPalette, DDPAL_FIRST_NON_SYSTEM_COLOR,
-                DDPAL_NUM_NON_SYSTEM_COLOR, g_SystemPalette);
-            SetDIBColorTable(g_OffscreenBufferDC, DDPAL_FIRST_NON_SYSTEM_COLOR,
-                DDPAL_NUM_NON_SYSTEM_COLOR, bmi_->bmiColors);
+            // DIB/GDI path
+            AnimatePalette(
+                g_hPalette,
+                DDPAL_FIRST_NON_SYSTEM_COLOR,
+                DDPAL_NUM_NON_SYSTEM_COLOR,
+                &g_logicalPalette.palPalEntry[10]
+            );
+            SetDIBColorTable(
+                g_OffscreenBufferDC,
+                DDPAL_FIRST_NON_SYSTEM_COLOR,
+                DDPAL_NUM_NON_SYSTEM_COLOR,
+                &bmi_->bmiColors[10]
+            );
         }
         else
         {
+            // DirectDraw palette update
             this->ddraw_palette->SetEntries(0, DDPAL_FIRST_NON_SYSTEM_COLOR,
-                DDPAL_NUM_NON_SYSTEM_COLOR, g_SystemPalette);
+                DDPAL_NUM_NON_SYSTEM_COLOR, &g_logicalPalette.palPalEntry[10]);
         }
 
         total_fade += fade_step;
 
-        /*QueryPerformanceCounter(&end_time);
-
-        float delta = ((float)(end_time.HighPart - start_time.HighPart) * 4.2949673e+09 +
-            (float)(int)(end_time.LowPart - start_time.LowPart)) /
-            ((float)g_countsPerSecond.LowPart + (float)g_countsPerSecond.HighPart * 4.2949673e+09);
-
-        while (delta < 0.00390625)
+        // wait for frame time (256 Hz)
+        double delta = 0;
+        do 
         {
             QueryPerformanceCounter(&end_time);
-            delta = ((float)(end_time.HighPart - start_time.HighPart) * 4.2949673e+09 +
-                (float)(int)(end_time.LowPart - start_time.LowPart)) /
-                ((float)g_countsPerSecond.LowPart + (float)g_countsPerSecond.HighPart * 4.2949673e+09);
-        }*/
-        double delta = 0;
-        do {
-            QueryPerformanceCounter(&end_time);
             delta = double(end_time.QuadPart - start_time.QuadPart) / double(g_countsPerSecond.QuadPart);
-        } while (delta < 0.00390625);
+        } 
+        while (delta < 1.0f / 256.0f);
 
-        fade_progress -= delta;
-        fade_step = int((fade_progress < 1.0f) ? 1.0f : fade_progress);
+        fade_progress -= (float)delta;
+
+        // convert remaining progress to step size (actually truncate to int)
+        fade_step = (int)fade_progress;
+
+        if (fade_step < 1)
+        {
+            fade_step = 1;
+        }
 
     } while (total_fade < 256);
 }
@@ -2348,6 +2471,607 @@ long aSystem::addCallback(aCallback* cb)
     this->callbacks[this->num_callbacks] = cb;
     this->num_callbacks += 1;
     return 0;
+}
+
+static Processor __forceinline DetectCPU()
+{
+    Processor proc = PROC_UNSUPPORTED;
+
+    // Try to toggle EFLAGS bit 21 (ID flag) to tests if CPUID is supported
+    uint32_t eflags1 = 0;
+    uint32_t eflags2 = 0;
+
+    __asm {
+        pushfd              // save EFLAGS
+        pop eax
+        mov ebx, eax        // save original
+        xor eax, 0x200000   // toggle ID bit (bit 21)
+        push eax
+        popfd               // write modified EFLAGS
+        pushfd
+        pop eax             // read EFLAGS back
+        mov eflags1, ebx    // original
+        mov eflags2, eax    // after toggle
+    }
+
+    if (eflags1 != eflags2) {
+        // ID bit stick, CPUID is supported (Pentium or later)
+        proc = PROC_PENTIUM_BASIC;
+
+        // Check for MMX support using CPUID
+        int cpuInfo[4];
+        // MSVC defines this function for us:
+        // https://learn.microsoft.com/en-us/cpp/intrinsics/cpuid-cpuidex
+        // seealso: abseil cpu_detect.cc
+        __cpuid(cpuInfo, 1);
+        // cpuInfo[0] = EAX (processor info)
+        // cpuInfo[1] = EBX (brand info)
+        // cpuInfo[2] = ECX (extended features)
+        // cpuInfo[3] = EDX (feature flags) <----
+        // Check bit 23 (MMX) in EDX
+        if (cpuInfo[3] & 0x800000) {  // EDX bit 23 = MMX
+            proc = PROC_PENTIUM_MMX;
+        }
+    }
+    else {
+        // ID bit could not be toggled, we have no CPUID support
+        // This should be a 386 or 486
+
+        // try to toggle EFLAGS bit 18 (AC flag) to check if it is a 486
+        __asm {
+            pushad              // save all registers
+            pushfd
+            pop eax
+            mov ecx, eax        // save original
+            xor eax, 0x40000    // Toggle AC bit (bit 18)
+            push eax
+            popfd
+            pushfd
+            pop eax
+            mov eflags1, ebx    // original
+            mov eflags2, eax    // after toggle
+        }
+
+        // did bit 18 change?
+        if (eflags1 != eflags2) {
+            // AC bit toggled, this is at least a 486
+
+            // Check for Pentium using the FDIV bug test
+            // This should be a trick to distinguish 486 from a Pentium?
+            // NOTE: needs confirmation.
+            uint16_t ax = 5;
+            uint16_t bx = 2;
+            uint8_t result;
+
+            __asm {
+                xor ax, ax      // clear AX
+                sahf            // load flags from AH
+                mov ax, 5
+                mov bx, 2
+                div bl          // AX / BL, result in AL, remainder in AH
+                lahf            // store flags in AH
+                mov result, ah
+            }
+
+            if (result == 2) {
+                proc = PROC_PENTIUM_NOCPUID;  // this is actually a Pentium.
+            }
+            // If result != 2, it's a 486, proc stays 0 (UNSUPPORTED).
+        }
+        // If AC bit didn't toggle, it's a 386. proc stays 0 (UNSUPPORTED).
+    }
+
+    return proc;
+}
+
+
+void aSystem::setScrollRect()
+{
+    this->can_scroll_horizontally = TRUE;
+    this->scroll_width = this->vtable->getWidth(this) - 4;
+    this->can_scroll_vertically = TRUE;
+    this->scroll_height = this->vtable->getHeight(this) - 4;
+}
+
+void aSystem::SetCurrentCursor(CursorType cursor_type)
+{
+    if (this->cursor_visible == FALSE) {
+        g_AG_mouseFrame = 0;
+        this->cursor_type_1 = cursor_type;
+        this->cursor_type_2 = cursor_type;
+        if (cursor_type == CURSOR_15) {
+            if (g_theInterface != (InterfaceObject*)0x0) {
+                this->cursor_type_2 = *(int*)(g_theInterface + 0x28) + 0xf;
+                return;
+            }
+        }
+        else if (cursor_type == CURSOR_16) {
+            if (g_theInterface != (InterfaceObject*)0x0) {
+                this->cursor_type_2 = *(int*)(g_theInterface + 0x28) + 0x2f;
+                return;
+            }
+        }
+        else if (cursor_type == CURSOR_17) {
+            if (g_theInterface != (InterfaceObject*)0x0) {
+                this->cursor_type_2 = *(int*)(g_theInterface + 0x28) + 0x4f;
+                return;
+            }
+        }
+        else if (cursor_type == CURSOR_18) {
+            this->cursor_type_2 = 1;
+        }
+    }
+}
+
+void aSystem::showCursor(BOOL visible)
+{
+    if (cursor_visible != 0) {
+        this->cursor_visible = 0;
+        this->SetCurrentCursor(CURSOR_0);
+        return;
+    }
+    this->cursor_type_2 = 0xffffffff;
+    this->cursor_visible = -1;
+}
+
+int32_t aSystem::start(HINSTANCE h_instance, HINSTANCE old_instance, char* cmd_line, int param_4, short width, short height)
+{
+    this->ddraw2 = (IDirectDraw2*)0x0;
+    this->ddraw1 = (IDirectDraw*)0x0;
+    this->ddraw_surf1 = (IDirectDrawSurface*)0x0;
+    this->ddraw_attached_surf = (IDirectDrawSurface*)0x0;
+    this->ddraw_palette = (IDirectDrawPalette*)0x0;
+    this->window_handle = (HWND)0x0;
+    this->num_callbacks = 0;
+    this->children_num = 0;
+    this->grabbed_object = (aObject*)0x0;
+    this->text = (aObject*)0x0;
+    this->curr_object = (aObject*)0x0;
+    this->parent = (aObject*)0x0;
+    this->modal = (aObject*)0x0;
+    this->gamma = 0;
+    this->allow_sys_palette_changes = 0;
+    this->field_0xaf0 = 0;
+    this->field_0xaf4 = 0;
+    this->flip_to_gdi = 0;
+    this->palette_cycle = -1;
+
+    g_backpbmi = (tagBITMAPINFO*)0x0;
+    g_thePalette = (HPALETTE*)0x0;
+
+    char local_470[256];
+    char local_370[256];
+    char local_270[256];
+    char local_170[256];
+
+    cLoadString(&g_thisInstance, 0x284, local_170, 254); // %s Release  Version: %s
+    cLoadString(&g_thisInstance, 0x283, local_170, 254); // %s Release  Version: %s
+    cLoadString(&g_thisInstance, 0x280, local_370, 254); // 1 major ?
+    cLoadString(&g_thisInstance, 0x281, local_470, 254); // 5 minor ?
+    cLoadString(&g_thisInstance, 0x282, local_270, 254); // 02.99.07.2601 patch/build ?
+
+    sprintf(g_appName, local_170, "MechCommander Expansion", local_270);
+    size_t app_name_len = strlen(g_appName);
+    strncpy(&g_WindowTitle, g_appName, app_name_len);
+
+    this->screen_offset_x = 0;
+    this->screen_offset_y = 0;
+
+    HWND window = FindWindowA("MCX", g_appName);
+    WINDOWPLACEMENT wp = {};
+
+    if (window != NULL)
+    {
+        static_assert(sizeof(WINDOWPLACEMENT) == 44);
+        wp.length = sizeof(WINDOWPLACEMENT);
+        GetWindowPlacement(window, &wp);
+        SetForegroundWindow(window);
+        if (wp.showCmd == WPF_RESTORETOMAXIMIZED)
+        {
+            ShowWindow(window, SW_RESTORE);
+        }
+        return -1;
+    }
+
+    HANDLE file_handle = CreateFileMapping(
+        INVALID_HANDLE_VALUE,
+        0,
+        PAGE_READONLY | SEC_LARGE_PAGES,
+        0,
+        4,
+        "MCX"
+    );
+
+    if (file_handle != NULL && GetLastError() == ERROR_ALREADY_EXISTS)
+    {
+        CloseHandle(file_handle);
+        return -1;
+    }
+
+    // Window class
+    WNDCLASSA wnd_cls = {};
+    wnd_cls.style = 8;
+    wnd_cls.lpfnWndProc = (WNDPROC)va_aSystem_windowProc;
+    wnd_cls.cbClsExtra = 0;
+    wnd_cls.cbWndExtra = 0;
+    wnd_cls.hInstance = h_instance;
+    wnd_cls.hIcon = LoadIconA(h_instance, MAKEINTRESOURCEA(0x131));
+    wnd_cls.hCursor = (HCURSOR)0x0;
+    wnd_cls.hbrBackground = (HBRUSH)GetStockObject(4);
+    wnd_cls.lpszMenuName = "MCX";
+    wnd_cls.lpszClassName = "MCX";
+    RegisterClassA(&wnd_cls);
+
+    // CPU detection, check for Pentium or better with CPUID support
+    g_Processor = DetectCPU();
+
+    if (g_Processor == PROC_UNSUPPORTED) {
+        GeneralMsg((char*)"Pentium or better CPU required");
+        return 1;
+    }
+
+    g_displayWidth = width;
+    g_displayHeight = height;
+    systemInit_ptr();
+
+    this->display_width = (int)width;
+    this->display_height = (int)height;
+
+    RECT window_rect = {};
+    SetRect(&window_rect, 0, 0, (int)width, (int)height);
+
+    for (size_t i = 0; i < MAX_CALLBACKS; i++)
+    {
+        this->callbacks[i] = nullptr;
+    }
+
+    // Init systemHeap
+    g_systemHeap = new UserHeap();
+    long res = g_systemHeap->init(g_systemHeapSize, &g_systemHeapName);
+    if (res != NO_ERR)
+    {
+        GeneralMsg((char*)"Unable to initialize system heap");
+        return res;
+    }
+    g_systemHeap->malloc_fatals = -1;
+
+    // Init guiHeap
+    g_guiHeap = new UserHeap();
+    res = g_guiHeap->init(g_guiHeapSize, &g_guiHeapName);
+    if (res != NO_ERR)
+    {
+        GeneralMsg((char*)"Unable to initialize gui heap");
+        return res;
+    }
+    g_guiHeap->malloc_fatals = -1;
+
+    // Parse CMD line
+    ParseCommandLine_ptr(cmd_line);
+
+    if (g_FullScreen == FALSE)
+    {
+        AdjustWindowRect(&window_rect, WS_OVERLAPPEDWINDOW, FALSE);
+        window = CreateWindowExA(
+            0,
+            "MCX",
+            g_appName,
+            WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            window_rect.right - window_rect.left,
+            window_rect.bottom - window_rect.top,
+            nullptr,
+            nullptr,
+            h_instance,
+            nullptr
+        );
+        this->window_handle = window;
+        ShowWindow(window, SW_SHOWDEFAULT);
+    }
+    else
+    {
+        window = CreateWindowExA(
+            0,
+            "MCX",
+            g_appName,
+            WS_POPUP,
+            0,
+            0,
+            window_rect.right - window_rect.left,
+            window_rect.bottom - window_rect.top,
+            nullptr,
+            nullptr,
+            h_instance,
+            nullptr
+        );
+        this->window_handle = window;
+    }
+
+    if (window == NULL)
+    {
+        return -2;
+    }
+
+    g_hWindow = window;
+
+    SetFocus(window);
+
+    g_blackFont = new aFont();
+    g_blackFont->init((char*)"blkfnt.fnt");
+
+    g_redFont = new aFont();
+    g_redFont->init((char*)"red.fnt");
+
+    g_yellowFont = new aFont();
+    g_yellowFont->init((char*)"yellow.fnt");
+
+    g_greenFont = new aFont();
+    g_greenFont->init((char*)"green.fnt");
+
+    g_blueFont = new aFont();
+    g_blueFont->init((char*)"blue.fnt");
+
+    g_greyFont = new aFont();
+    g_greyFont->init((char*)"gryfnt.fnt");
+
+    g_whiteFont = new aFont();
+    g_whiteFont->init((char*)"white.fnt");
+
+    g_dimFont = new aFont();
+    g_dimFont->init((char*)"dim.fnt");
+
+    g_yellowDropFont = new aFont();
+    g_yellowDropFont->init((char*)"yelldrp.fnt");
+
+    g_blueDropFont = new aFont();
+    g_blueDropFont->init((char*)"bluedrp.fnt");
+
+    g_medBlackFont = new aFont();
+    g_medBlackFont->init((char*)"blkfnt10.fnt");
+
+    g_medRedFont = new aFont();
+    g_medRedFont->init((char*)"red10.fnt");
+
+    g_medYellowFont = new aFont();
+    g_medYellowFont->init((char*)"yellow10.fnt");
+
+    g_medGreenFont = new aFont();
+    g_medGreenFont->init((char*)"green10.fnt");
+
+    g_medBlueFont = new aFont();
+    g_medBlueFont->init((char*)"blue10.fnt");
+
+    g_medGreyFont = new aFont();
+    g_medGreyFont->init((char*)"gryfnt10.fnt");
+
+    g_medWhiteFont = new aFont();
+    g_medWhiteFont->init((char*)"white10.fnt");
+
+    g_medDimFont = new aFont();
+    g_medDimFont->init((char*)"dim10.fnt");
+
+    g_lgBlackFont = new aFont();
+    g_lgBlackFont->init((char*)"blkfnt12.fnt");
+
+    g_lgRedFont = new aFont();
+    g_lgRedFont->init((char*)"red12.fnt");
+
+    g_lgYellowFont = new aFont();
+    g_lgYellowFont->init((char*)"yellow12.fnt");
+
+    g_lgGreenFont = new aFont();
+    g_lgGreenFont->init((char*)"green12.fnt");
+
+    g_lgBlueFont = new aFont();
+    g_lgBlueFont->init((char*)"blue12.fnt");
+
+    g_lgGreyFont = new aFont();
+    g_lgGreyFont->init((char*)"gryfnt12.fnt");
+
+    g_lgWhiteFont = new aFont();
+    g_lgWhiteFont->init((char*)"white12.fnt");
+
+    g_lgDimFont = new aFont();
+    g_lgDimFont->init((char*)"dim12.fnt");
+
+    g_fonts[0] = g_blackFont;
+    g_fonts[1] = g_medBlackFont;
+    g_fonts[2] = g_lgBlackFont;
+
+    g_fonts[3] = g_redFont;
+    g_fonts[4] = g_medRedFont;
+    g_fonts[5] = g_lgRedFont;
+
+    g_fonts[6] = g_yellowFont;
+    g_fonts[7] = g_medYellowFont;
+    g_fonts[8] = g_lgYellowFont;
+
+    g_fonts[9] = g_greenFont;
+    g_fonts[10] = g_medGreenFont;
+    g_fonts[11] = g_lgGreenFont;
+
+    g_fonts[12] = g_blueFont;
+    g_fonts[13] = g_medBlueFont;
+    g_fonts[14] = g_lgBlueFont;
+
+    g_fonts[15] = g_greyFont;
+    g_fonts[16] = g_medGreyFont;
+    g_fonts[17] = g_lgGreyFont;
+
+    g_fonts[18] = g_whiteFont;
+    g_fonts[19] = g_medWhiteFont;
+    g_fonts[20] = g_lgWhiteFont;
+
+    g_fonts[21] = g_dimFont;
+    g_fonts[22] = g_medDimFont;
+    g_fonts[23] = g_lgDimFont;
+
+    g_fonts[24] = g_yellowDropFont;
+    g_fonts[25] = g_yellowDropFont;
+
+    g_fonts[27] = g_blueDropFont;
+    g_fonts[28] = g_blueDropFont;
+
+    g_systemFont = g_greyFont;
+
+    Font* font = new Font();
+    font->field_0x0 = 0;
+    font->field_0x4 = 0;
+    font->field_0x8 = 0xf;
+    font->field_0x10 = 0x40000000;
+    font->field_0x14 = 0;
+    font->field_0x18 = 1;
+
+    font->glyphs = nullptr;
+    // Original was: UserHeap::free(systemHeap,(void *)0x0).
+    // is this intentional, or was the field accidentally null-ed before
+    // free, causing the compiler to optimize it out.
+    g_systemHeap->free(font->glyphs);
+    font->glyphs = nullptr;
+
+    for (size_t i = 0; i < 256; i++)
+    {
+        font->glyphs_cache[i] = (uint8_t*)-1;
+    }
+
+    g_lineFont = font;
+    font->init((char*)FONT_NAME);
+
+    Palette* pal = new Palette();
+    if (pal == nullptr)
+    {
+        g_gamePalette = nullptr;
+        Fatal(-1, (char*)" No RAM for Game palette ", nullptr);
+    }
+    else 
+    {
+        // TODO: fields
+        pal->length = 0;
+        pal->palette_data = nullptr,
+        memset(pal->palette_filename, '\0', PAL_FILENAME_LEN);
+        memset(pal->ex_palette_filename, '\0', PAL_FILENAME_LEN);
+        memset(pal->bw_palette_filename, '\0', PAL_FILENAME_LEN);
+        memset(pal->fade_table_filename, '\0', PAL_FILENAME_LEN);
+        memset(pal->all_fade_table_filename, '\0', PAL_FILENAME_LEN);
+        memset(pal->depth_table_filename, '\0', PAL_FILENAME_LEN);
+        pal->init();
+        g_gamePalette = pal;
+    }
+
+    res = g_gamePalette->init2((char*)"palette");
+
+    if (res != NO_ERR)
+    {
+        Fatal(res, (char*)" Unable to initialize game palette ", nullptr);
+        return res;
+    }
+
+    InitAlphaLookup_ptr(reinterpret_cast<VFX_RGB*>(g_gamePalette->rgb_data_));
+
+    PacketFile* art_file = new PacketFile();
+    g_artFile = art_file;
+    Assert(g_artFile != nullptr, 0,  (char*)"Not enough RAM for artFile (Something's way wrong...)", nullptr);
+
+    FullPathFileName* path = new FullPathFileName();
+    path->init(&g_artPath, (char*)"art", (char*)".pak");
+    res = g_artFile->vtable->open2(g_artFile, path->buf, READ, FILE_DEFAULT_MAX_CHILDREN);
+    if (res != 0)
+    {
+        Fatal(0, (char*)"Error opening art file", nullptr);
+    }
+    delete path;
+
+    this->startupDirectDraw(this->display_width, this->display_height, 8);
+
+    g_cursorShapes = reinterpret_cast<uint8_t**>(g_systemHeap->malloc(512));
+    memset(g_cursorShapes, 0, 512);
+
+    path = new FullPathFileName();
+    path->init(&g_spritePath, (char*)"cursors", (char*)".pak");
+    PacketFile* cursors_file = new PacketFile();
+    res = cursors_file->vtable->open2(cursors_file, path->buf, READ, FILE_DEFAULT_MAX_CHILDREN);
+    
+    if (res != NO_ERR)
+    {
+        // TODO: fallback try read from CD
+        Fatal(res, (char*)"Cannot find cursors.pak file", nullptr);
+    }
+    
+    if (cursors_file->packets_num >= 127) // TODO: MAX_CURSORS
+    {
+        Fatal(-1, (char*)" Too Many cursor Shapes ", nullptr);
+    }
+
+    for (size_t i = 0; i < cursors_file->packets_num; i++)
+    {
+        cursors_file->seekPacket(i);
+        size_t pkt_size = cursors_file->getPacketSize();
+        uint8_t* buf = reinterpret_cast<uint8_t*>(g_systemHeap->malloc(pkt_size));
+        g_cursorShapes[i] = buf;
+        if (buf == nullptr)
+        {
+            Fatal(-1, (char*)" no RAM for cursors ", nullptr);
+        }
+        cursors_file->readPacket(i, g_cursorShapes[i]);
+    }
+
+    cursors_file->vtable->close(cursors_file);
+    if (cursors_file != nullptr)
+    {
+        delete cursors_file;
+    }
+
+    ShowCursor(FALSE);
+
+    this->cursor_type_2 = -1;
+
+    MouseTimerInit_ptr();
+    g_screenPort = new aPort();
+    res = g_screenPort->vtable->init(g_screenPort, this->display_width, this->display_height);
+    if (res != NO_ERR)
+    {
+        Fatal(res, (char*)" Unable to create screenPort", nullptr);
+    }
+    g_screenPort->bitmap->pixels = nullptr;
+
+    g_screenWindow = new aObject();
+    g_screenWindow->vtable->init(g_screenWindow, 0, 0, this->display_width, this->display_height, 0);
+    g_screenWindow->vtable->setDepth(g_screenWindow, 0xffffff9c);
+    g_screenWindow->initialization_state = 1;
+
+    g_gamePalette->activate(0, 0);
+    QueryPerformanceFrequency(&g_countsPerSecond);
+    UpdateDisplay_ptr(0, 0, 0, 0, 0);
+    aUnlockScreen_ptr();
+    this->timer_manager = new aTimerManager();
+    this->timer_manager->Init();
+
+    g_theInterface = new InterfaceObject();
+    if (g_theInterface != nullptr)
+    {
+        InterfaceObject_init_ptr(g_theInterface);
+        res = userInit_ptr();
+        if (res != 0)
+        {
+            delete path;
+            return -10;
+        }
+        this->setScrollRect();
+        this->cursor_visible = 0;
+        this->SetCurrentCursor(CURSOR_0);
+        this->showCursor(0);
+        this->some_code = 0xDDAC0000;
+
+        g_mouseTrackerCallback = new aCallback();
+        g_mouseTrackerCallback->setExec((callback_func_t)va_CheckMouse);
+        g_application->addCallback(g_mouseTrackerCallback);
+
+        delete path;
+        return 0;
+    }
+
+    delete path;
+    return 2;
 }
 #pragma endregion
 
@@ -2511,12 +3235,14 @@ static AutoFuncPatchRegister reg_aSystem{
         { (void*)va_InitFullScreen, (void*)InitFullScreen},
         { (void*)va_handleEvent, (void*)handleEvent},
         { (void*)va_CheckMouse, (void*)CheckMouse},
+        { (void*)va_RealWinMain, (void*)RealWinMain},
         { (void*)va_aSystem_tweakDDPalette, GetMemberPtr(&aSystem::tweakDDPalette)},
         { (void*)va_aSystem_activatePalette, GetMemberPtr(&aSystem::activatePalette)},
         { (void*)va_aSystem_activatePaletteFromTGA, GetMemberPtr(&aSystem::activatePaletteFromTGA)},
         { (void*)va_aSystem_activatePaletteFromGIF, GetMemberPtr(&aSystem::activatePaletteFromGIF)},
         { (void*)va_aSystem_activateSmackerPalette, GetMemberPtr(&aSystem::activateSmackerPalette)},
         { (void*)va_aSystem_fadeDownCurrentPalette, GetMemberPtr(&aSystem::fadeDownCurrentPalette)},
+        { (void*)va_aSystem_start, GetMemberPtr(&aSystem::start)},
     }
 };
 

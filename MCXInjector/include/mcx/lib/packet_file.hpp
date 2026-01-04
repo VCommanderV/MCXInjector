@@ -12,11 +12,12 @@ static constexpr long ERR_BAD_PACKET_KIND = 0xBADF000B;
 enum PacketKind : long
 {
 	RAW = 0x00L,
+	FWF = 0x01L, // File within file?
 	FIL = 0x02L,
 	NUL = 0x07L,
 };
 
-class PacketFile : File
+class PacketFile : public File
 {
 public:
 	long packets_num;
@@ -30,7 +31,12 @@ public:
 	long* seek_table;
 	BOOL check_integrity;
 public:
+	// protected: void __thiscall PacketFile::(void)
 	PacketFile(); // File
+
+	// public: __thiscall PacketFile::~PacketFile(void)
+	~PacketFile();
+
 	// protected: void __thiscall PacketFile::clear(void)
 	void clear();
 
@@ -42,6 +48,12 @@ public:
 
 	// public: long __thiscall PacketFile::getPacketSize(void)
 	long getPacketSize();
+
+	// public: long __thiscall PacketFile::getStorageType(void)
+	PacketKind getStorageType();
+
+	// uint __thiscall FUN_0064d250(int packet_idx, uchar *buf)
+	long readPacket(long packet_idx, uint8_t* buf);
 };
 
 #pragma region VAs

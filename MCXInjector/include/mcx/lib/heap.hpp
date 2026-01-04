@@ -227,9 +227,6 @@ namespace mcx::heap
 }
 
 #pragma region VAs
-VADDR(va_systemHeap, 0x007aaf8c);
-VADDR(va_guiHeap, 0x007aae78);
-
 VADDR(va_globalHeapList, 0x007d8fb0);
 
 VADDR(va_HeapManager_vftable, 0x0077c320);
@@ -274,11 +271,28 @@ VADDR(va_UserHeap_mergeWithLower, 0x00648830);
 
 VADDR(va_HeapList_addHeap, 0x006488f0);
 VADDR(va_HeapList_removeHeap, 0x00648940);
+
+VADDR(va_systemHeap, 0x007aaf8c);
+VADDR(va_systemHeapSize, 0x00789f84);
+VADDR(va_systemHeapName, 0x0078a6ac);
+
+VADDR(va_guiHeap, 0x007aae78);
+VADDR(va_guiHeapSize, 0x00789f88);
+VADDR(va_guiHeapName, 0x0078a680);
 #pragma endregion
 
 #pragma region Globals
+// systemHeap
 PTR_REF(UserHeap, g_systemHeap, va_systemHeap);
+OBJ_REF(char, g_systemHeapName, va_systemHeapName);
+OBJ_REF(uint32_t, g_systemHeapSize, va_systemHeapSize);
+
+// guiHeap
 PTR_REF(UserHeap, g_guiHeap, va_guiHeap);
+OBJ_REF(char, g_guiHeapName, va_guiHeapName);
+OBJ_REF(uint32_t, g_guiHeapSize, va_guiHeapSize);
+
+PTR_REF(HeapList, g_globalHeapList, va_globalHeapList);
 #pragma endregion
 
 #pragma region Layout asserts

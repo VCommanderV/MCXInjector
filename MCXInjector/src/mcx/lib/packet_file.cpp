@@ -2,6 +2,7 @@
 #include "mcx/lib/heap.hpp"
 #include "mcx/lib/file.hpp"
 #include "mcx/lib/packet_file.hpp"
+#include "mcx/lib/error.hpp"
 #include "mcx/lib/lz_decomp.hpp"
 
 // __thiscall PacketFile::PacketFile(void)
@@ -25,6 +26,13 @@ PacketFile::PacketFile()
     Hook_PacketFile_ctor(this, nullptr);
 }
 #pragma warning(default:26495)
+
+PacketFile::~PacketFile()
+{
+    File* file = reinterpret_cast<File*>(this);
+    file->vtable->close(file);
+    delete file;
+}
 
 void PacketFile::clear()
 {
@@ -66,6 +74,67 @@ long PacketFile::readPacketOffset(long packet_idx, PacketKind* packet_kind)
 long PacketFile::getPacketSize()
 {
     return this->packet_real_size;
+}
+
+PacketKind PacketFile::getStorageType()
+{
+    return this->packet_kind;
+}
+
+long PacketFile::readPacket(long packet_idx, uint8_t* dst)
+{
+    if (packet_idx != -1 && packet_idx != this->current_packet)
+    {
+        long res = this->seekPacket(packet_idx);
+        if (res != NO_ERR)
+        {
+            return 0;
+        }
+    }
+
+    PacketKind storage_type = this->getStorageType();
+
+    if (storage_type == RAW || storage_type == FWF)
+    {
+        this->seek(this->packet_offset, SEEK_SET);
+        return this->read2(dst, this->packet_size);
+    }
+
+    if (storage_type == FIL)
+    {
+        this->seek(this->packet_offset + 4, 0);
+
+        if (g_LZPacketBuffer == nullptr)
+        {
+            g_LZPacketBuffer = reinterpret_cast<unsigned char*>(malloc(LZPacketBufferSize));
+            if (g_LZPacketBuffer == nullptr)
+            {
+                Fatal(-1, (char*)" No RAM to Unpack Files ", nullptr);
+            }
+        }
+        
+        size_t pkt_size = this->packet_size;
+        
+        if (LZPacketBufferSize < pkt_size)
+        {
+            LZPacketBufferSize = pkt_size;
+            free(g_LZPacketBuffer);
+            g_LZPacketBuffer = reinterpret_cast<unsigned char*>(malloc(LZPacketBufferSize));
+            if (g_LZPacketBuffer == nullptr)
+            {
+                Fatal(-1, (char*)" No RAM to Unpack Files ", nullptr);
+            }
+        }
+
+        if (g_LZPacketBuffer != nullptr)
+        {
+            this->read2(g_LZPacketBuffer, pkt_size - 4);
+            long real_size = LZDecomp(dst, g_LZPacketBuffer, this->packet_size - 4);
+            return real_size == this->packet_real_size ? real_size : 0;
+        }
+    }
+
+    return 0;
 }
 
 long PacketFile::seekPacket(long packet_idx)

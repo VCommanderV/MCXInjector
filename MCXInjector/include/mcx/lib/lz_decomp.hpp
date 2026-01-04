@@ -7,7 +7,7 @@
 static unsigned char* g_LZPacketBuffer;
 
 // 512 KB buffer
-static constexpr unsigned long LZPacketBufferSize = 0x7D000;
+static unsigned long LZPacketBufferSize = 0x7D000;
 
 // Dictionary entry: stores a "chain" (prefix code and suffix character)
 #pragma pack(push, 1)

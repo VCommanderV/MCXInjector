@@ -69,6 +69,7 @@ VADDR(va_VFX_draw_line, 0x0076cdfd);
 VADDR(va_VFX_pane_wipe, 0x0076f7cc);
 VADDR(va_VFX_font_height, 0x00771488);
 VADDR(va_VFX_string_draw, 0x0077164e);
+VADDR(va_VFX_character_width, 0x0077149b);
 #pragma endregion
 
 #pragma region FuncPtrs
@@ -79,5 +80,7 @@ static auto _VFX_draw_line_PTR = reinterpret_cast<long(__cdecl*)(_pane*, int, in
 static auto _VFX_pane_wipe_PTR = reinterpret_cast<long(__cdecl*)(_pane*, long)>(MCX_RUNTIME_ADDR(va_VFX_pane_wipe));
 // undefined4 _VFX_font_height(int param_1)
 inline auto _VFX_font_height_PTR = FUN_PTR<long(__cdecl*)(void*)>(va_VFX_font_height);
+inline auto _VFX_character_width_PTR = FUN_PTR<long(__cdecl*)(void* font, unsigned char ch)>(va_VFX_character_width);
 inline auto _VFX_string_draw_PTR = FUN_PTR<void(__cdecl*)(_pane* pane, int32_t x, int32_t y, uint8_t* font, char* string, unsigned char* color_translate)>(va_VFX_string_draw);
+
 #pragma endregion
